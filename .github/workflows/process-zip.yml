@@ -1,0 +1,40 @@
+name: On-Demand ZIP & Catalog Processor
+
+on:
+  repository_dispatch:
+    types: [process_new_export]
+  workflow_dispatch:
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodu Çek
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 Kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Bağımlılıkları Yükle
+        run: |
+          pip install --upgrade pip
+          pip install -e .
+
+      - name: ZIP İşleme ve Tür Zenginleştirmeyi Çalıştır
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+        run: |
+          echo "1. Bekleyen ZIP dosyaları işleniyor..."
+          python -m app.pipeline.export_runner
+          
+          echo "2. Yeni şarkılar için tür zenginleştirmesi (Genre Enrichment) yapılıyor..."
+          python -m app.pipeline.genre_runner
+          
+          echo "İşlem tamamlandı, runner kapatılıyor."

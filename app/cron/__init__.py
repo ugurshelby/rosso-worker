@@ -1,0 +1,1 @@
+"""Railway cron entry'leri — her tetiklemede iş yapıp çıkar (durumsuz)."""
