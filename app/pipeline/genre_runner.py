@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import time
 from typing import Any
 
@@ -493,6 +494,59 @@ def _recheck_resolved_artists(client: Any, artist_profiles: dict[str, dict]) -> 
     return cleared
 
 
+# ─────────────────────────── on-demand giriş noktası ───────────────────────
+#
+# cron-system.md ADIM 3/4: GitHub Actions'ın `python -m app.pipeline.genre_runner`
+# ile çağırdığı gerçek entrypoint burada yaşar. Önceden bu dosyada `__main__`
+# YOKTU — workflow bu modülü çalıştırınca hiçbir şey yapmadan sessizce exit 0
+# veriyordu. `run_one_genre_batch` yalnız TEK bir 200'lük batch işler (Railway'in
+# 5 dakikalık tik modeline göre tasarlanmıştı); on-demand modelde kuyruk
+# (`genres IS NULL`) boşalana veya dış zaman bütçesi dolana kadar TEKRAR
+# çağrılması gerekir — `run_export_burst` ile aynı desen.
+def run_genre_burst(
+    *, time_budget_s: float = 1200.0, batch_limit: int = 200, per_batch_budget_s: float = 240.0,
+) -> dict[str, Any]:
+    """Bekleyen tür zenginleştirmelerini dış zaman bütçesi içinde sırayla işle."""
+    from app.config import get_settings
+    from app.db import get_client
+
+    client = get_client()
+    settings = get_settings()
+
+    started = time.monotonic()
+    batches = 0
+    total_processed = 0
+    total_updated = 0
+    last_outcome = "empty"
+
+    while True:
+        elapsed = time.monotonic() - started
+        if batches > 0 and elapsed >= time_budget_s:
+            break
+
+        result = run_one_genre_batch(
+            client, settings, batch_limit=batch_limit, time_budget_s=per_batch_budget_s,
+        )
+        last_outcome = result["outcome"]
+        batches += 1
+        total_processed += result.get("processed", 0)
+        total_updated += result.get("updated", 0)
+
+        if last_outcome in ("empty", "blocked"):
+            break
+
+    logger.info(
+        "[genre_runner] on-demand tur bitti: batches=%s processed=%s updated=%s son=%s",
+        batches, total_processed, total_updated, last_outcome,
+    )
+    return {
+        "batches": batches,
+        "processed": total_processed,
+        "updated": total_updated,
+        "last_outcome": last_outcome,
+    }
+
+
 def _clear_genre_pending_if_done(client: Any) -> None:
     """genres IS NULL track kalmadıysa tüm genre_pending export_jobs'u temizle.
 
@@ -509,3 +563,12 @@ def _clear_genre_pending_if_done(client: Any) -> None:
             logger.info("Tüm genre'ler tamamlandı → genre_pending temizlendi")
     except Exception:  # noqa: BLE001
         logger.warning("genre_pending temizleme başarısız")
+
+
+def main() -> int:
+    run_genre_burst()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

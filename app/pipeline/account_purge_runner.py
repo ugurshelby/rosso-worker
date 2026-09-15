@@ -4,7 +4,7 @@ Bağlam (Aşama D / D1, migration 0100 + admin purge route):
   Hesap silme İKİ aşamalı. (1) Kullanıcı/admin soft-delete eder →
   social_profiles.deleted_at damgalanır, veri 30 gün DURUR (geri alınabilir).
   (2) 30 gün dolunca KALICI silme. Bugüne kadar bu ikinci aşama YALNIZ admin
-  panelinden ELLE yapılıyordu (apps/admin .../purge/route.ts). Bu runner onu
+  panelinden ELLE yapılıyordu (admin .../purge/route.ts). Bu runner onu
   otomatikleştirir — süresi dolmuş hesapları kendiliğinden siler.
 
 Neden güvenli (admin route ile AYNI kapılar, e-posta onayı hariç):

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import logging
+import sys
 import time
 import zipfile
 from typing import Any, Iterator
@@ -293,3 +294,25 @@ def run_one_export(client: Any, settings: Any, job: dict[str, Any]) -> dict[str,
         "matched_events": matched_events,
         "skipped_events": skipped_events,
     }
+
+
+# ─────────────────────────── on-demand giriş noktası ───────────────────────
+#
+# cron-system.md ADIM 3/4: GitHub Actions'ın `python -m app.pipeline.export_runner`
+# ile çağırdığı gerçek entrypoint burada yaşar. Önceden bu dosyada `__main__`
+# YOKTU — workflow bu modülü çalıştırınca hiçbir şey yapmadan sessizce exit 0
+# veriyordu (bir fonksiyon/sınıf tanımlamak dışında top-level kod yok). Gerçek
+# "kuyruk bitene kadar çalış" mantığı `app.cron.export.run_export_burst()`'te
+# zaten vardı ama hiçbir __main__'e bağlı değildi. İçe aktarma burada
+# FONKSİYON İÇİNDE (lazy) yapılır — `app.cron.export` da bu modülden
+# `run_one_export`'u lazy import ediyor; top-level import döngüsel olurdu.
+def main() -> int:
+    from app.cron.export import run_export_burst
+
+    result = run_export_burst()
+    logger.info("[export_runner] on-demand tur bitti: %s", result)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
