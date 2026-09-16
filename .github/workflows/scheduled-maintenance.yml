@@ -1,29 +1,24 @@
-name: Scheduled Maintenance (account_purge / mood_pkg / playlist_refresh / catalog)
+name: Scheduled Maintenance (Katalog Bakımı — ISRC/Kapak/Sanatçı Görseli)
 
-# 01-yillik-kontrolsuz-calisma-plani.md ADIM 3.
+# 01-yillik-kontrolsuz-calisma-plani.md devamı (2026-09-16).
+#
+# account_purge/mood_pkg/playlist_refresh TypeScript'e (Vercel) taşındı —
+# yalnızca katalog bakımı (Deezer/Last.fm/MusicBrainz çok sağlayıcılı,
+# olgun Python kodu) burada, GitHub Actions'ta kaldı. Düşük öncelikli/
+# kozmetik olduğu için otomatik zamanlaması korunuyor.
 #
 # GitHub'ın kendi `schedule:` tetikleyicisi KASITLI olarak kullanılmıyor: 60
 # gün boyunca repoda commit/push olmazsa GitHub zamanlanmış workflow'ları
 # otomatik durdurur. Bunun yerine asıl zamanlayıcı Supabase pg_cron'dur —
 # `/api/cron/trigger-worker-maintenance` route'u `repository_dispatch` ile
-# bu workflow'u uyandırır (bkz. web/src/app/api/cron/trigger-worker-maintenance).
+# bu workflow'u uyandırır.
 on:
   repository_dispatch:
     types: [scheduled_maintenance]
   workflow_dispatch:
-    inputs:
-      task:
-        description: "Hangi bakım görevi çalıştırılsın?"
-        type: choice
-        required: true
-        options:
-          - account_purge
-          - mood_pkg
-          - playlist_refresh
-          - catalog_maintenance
 
 jobs:
-  run-task:
+  catalog-maintenance:
     runs-on: ubuntu-latest
     steps:
       - name: Kodu Çek
@@ -40,41 +35,7 @@ jobs:
           pip install --upgrade pip
           pip install -e .
 
-      - name: Görev Adını Belirle
-        id: task
-        run: |
-          TASK="${{ github.event.client_payload.task || inputs.task }}"
-          if [ -z "$TASK" ]; then
-            echo "::error::task alanı boş (client_payload.task veya inputs.task bekleniyor)"
-            exit 1
-          fi
-          echo "task=$TASK" >> "$GITHUB_OUTPUT"
-
-      - name: account_purge — 30 günü dolmuş hesapları kalıcı sil
-        if: steps.task.outputs.task == 'account_purge'
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python -m app.cron.account_purge
-
-      - name: mood_pkg — Mood listeleri paketini tazele
-        if: steps.task.outputs.task == 'mood_pkg'
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python -m app.cron.mood_pkg
-
-      - name: playlist_refresh — Otomatik playlist'leri tazele
-        if: steps.task.outputs.task == 'playlist_refresh'
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
-        run: python -m app.cron.playlist_refresh
-
-      - name: catalog_maintenance — ISRC/kapak/sanatçı görsel bakım turu
-        if: steps.task.outputs.task == 'catalog_maintenance'
+      - name: Katalog Bakım Turu
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
