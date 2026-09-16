@@ -54,6 +54,10 @@ class _Query:
         self._table["inserted"].append(row)
         return self
 
+    def upsert(self, row, on_conflict=None):
+        self._table["inserted"].append(row)
+        return self
+
     def update(self, row):
         self._table["updated"].append(row)
         return self

@@ -346,7 +346,11 @@ def get_or_build_artist_profile(
         if cached:
             client.table("artists").update(row).eq("name_normalized", key).execute()
         else:
-            client.table("artists").insert(row).execute()
+            # upsert (plain insert değil): `name_normalized` artık UNIQUE
+            # (migration 0302) — check-then-insert (yukarıdaki select) ile
+            # bu satır arasında nadir bir yarış olursa plain insert constraint
+            # ihlaliyle patlardı; upsert aynı yarışta güvenle günceller.
+            client.table("artists").upsert(row, on_conflict="name_normalized").execute()
     except Exception:  # noqa: BLE001
         logger.warning("Artist profil yazma başarısız: %s", artist)
 
