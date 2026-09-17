@@ -1,0 +1,85 @@
+name: DB Yedek (Supabase dışına şifreli dump)
+
+# NEDEN VAR (2026-09-17):
+# Supabase'in kendi yedekleri, erişimini kaybedebileceğin HESABIN İÇİNDE durur.
+# "Supabase hesabıma erişimi kaybettim" senaryosunda o yedekler de gider. Bu
+# yüzden yedek Supabase'in DIŞINDA, ayrı bir kimlik alanında (GitHub) tutulur.
+#
+# Ayrıca ücretsiz Supabase planında point-in-time recovery yoktur — yani
+# "dün 14:00'e dön" diyebileceğin bir mekanizma zaten yok. Bu workflow o boşluğu
+# haftalık anlık görüntülerle doldurur.
+#
+# ⚠ ZAMANLAMA UYARISI: GitHub, repoda 60 gün boyunca hiç commit/push olmazsa
+# `schedule:` tetikleyicilerini OTOMATİK DURDURUR (ve uyarı e-postası atar).
+# Worker reposu seyrek değişir, yani bu gerçek bir risk. İki savunma:
+#   1) Aşağıdaki `workflow_dispatch` ile istediğin an elle çalıştırabilirsin.
+#   2) Uyarı e-postası gelirse repoda herhangi bir commit atmak sayacı sıfırlar.
+# Durumu `docs/reference/yillik-bakim-kontrol-listesi.md` üzerinden takip et.
+
+on:
+  schedule:
+    # Her pazar 04:00 UTC — katalog bakımıyla (çarşamba) çakışmaz.
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+
+jobs:
+  yedek:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Postgres istemcisini kur
+        # Ubuntu runner'ın kendi pg_dump'ı eski olabilir; Supabase Postgres 17
+        # kullanıyor ve sürüm uyuşmazlığı pg_dump'ı "server version mismatch"
+        # ile durdurur. Bu yüzden 17 açıkça kuruluyor.
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump al, sıkıştır, şifrele
+        env:
+          # Tam bağlantı dizesi (session pooler, port 5432):
+          #   postgresql://postgres.<ref>:<parola>@aws-0-<bolge>.pooler.supabase.com:5432/postgres
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          # Simetrik şifreleme parolası. ⚠ BUNU KAYBEDERSEN YEDEK DE ÇÖPTÜR —
+          # parola menajerinde, Supabase'den BAĞIMSIZ bir yerde sakla.
+          YEDEK_PAROLA: ${{ secrets.YEDEK_PAROLA }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_DB_URL:-}" ] || [ -z "${YEDEK_PAROLA:-}" ]; then
+            echo "::error::SUPABASE_DB_URL veya YEDEK_PAROLA secret'ı tanımsız — yedek alınamadı."
+            exit 1
+          fi
+
+          DOSYA="rosso-yedek-$(date -u +%Y%m%d-%H%M).sql.gz.gpg"
+
+          # --no-owner/--no-acl: geri yüklerken farklı bir projeye/role basmak
+          # kolay olsun diye (yedeğin amacı tam da o: hesabı kaybettiysen YENİ
+          # bir Supabase projesine geri yüklemek).
+          pg_dump "$SUPABASE_DB_URL" \
+            --no-owner --no-acl \
+            --schema=public \
+            --exclude-table-data='public.system_logs' \
+          | gzip -9 \
+          | gpg --batch --yes --symmetric --cipher-algo AES256 \
+                --passphrase "$YEDEK_PAROLA" \
+                -o "$DOSYA"
+
+          BOYUT=$(du -h "$DOSYA" | cut -f1)
+          echo "Yedek alındı: $DOSYA ($BOYUT)"
+          # Sıfır baytlık/çöp bir dosyayı "başarı" sanmamak için asgari boyut kontrolü.
+          if [ "$(stat -c%s "$DOSYA")" -lt 10000 ]; then
+            echo "::error::Yedek şüpheli derecede küçük — dump başarısız olmuş olabilir."
+            exit 1
+          fi
+
+      - name: Artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: rosso-db-yedek
+          path: rosso-yedek-*.sql.gz.gpg
+          # GitHub ücretsiz planında tavan 90 gün. Daha uzun saklamak istersen
+          # artifact'i indirip kendi diskinde tut (bkz. geri yükleme rehberi).
+          retention-days: 90
+          if-no-files-found: error
