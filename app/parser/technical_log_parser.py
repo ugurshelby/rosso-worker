@@ -23,6 +23,8 @@ import json
 import logging
 from typing import Any
 
+from app.services.chunking import chunked
+
 logger = logging.getLogger("rosso.worker.technical_log")
 
 # ─── hard-discard ────────────────────────────────────────────────────────────
@@ -434,12 +436,18 @@ def _insert_liked_events(
         for r in rows
     ]
 
+    from app.config import get_settings
+    batch_size = get_settings().batch_size
+
     try:
-        client.table("liked_songs_events").upsert(
-            db_rows,
-            on_conflict="user_id,spotify_uri,occurred_at,event_type",
-            ignore_duplicates=True,
-        ).execute()
+        for batch in chunked(db_rows, batch_size):
+            if not batch:
+                continue
+            client.table("liked_songs_events").upsert(
+                batch,
+                on_conflict="user_id,spotify_uri,occurred_at,event_type",
+                ignore_duplicates=True,
+            ).execute()
         counts["liked_songs_inserted"] += len(db_rows)
         logger.info("liked_songs_events: %d kayıt eklendi (job=%s)", len(db_rows), job_id)
     except Exception:
@@ -469,12 +477,18 @@ def _insert_playlist_track_events(
         for r in rows
     ]
 
+    from app.config import get_settings
+    batch_size = get_settings().batch_size
+
     try:
-        client.table("playlist_track_events").upsert(
-            db_rows,
-            on_conflict="user_id,track_uri,playlist_uri,added_at",
-            ignore_duplicates=True,
-        ).execute()
+        for batch in chunked(db_rows, batch_size):
+            if not batch:
+                continue
+            client.table("playlist_track_events").upsert(
+                batch,
+                on_conflict="user_id,track_uri,playlist_uri,added_at",
+                ignore_duplicates=True,
+            ).execute()
         counts["playlist_track_events_inserted"] += len(db_rows)
         logger.info("playlist_track_events: %d kayıt eklendi (job=%s)", len(db_rows), job_id)
     except Exception:
@@ -503,12 +517,18 @@ def _insert_car_sessions(
         for s in sessions
     ]
 
+    from app.config import get_settings
+    batch_size = get_settings().batch_size
+
     try:
-        client.table("car_sessions").upsert(
-            db_rows,
-            on_conflict="user_id,connected_at",
-            ignore_duplicates=True,
-        ).execute()
+        for batch in chunked(db_rows, batch_size):
+            if not batch:
+                continue
+            client.table("car_sessions").upsert(
+                batch,
+                on_conflict="user_id,connected_at",
+                ignore_duplicates=True,
+            ).execute()
         counts["car_sessions_inserted"] += len(db_rows)
         logger.info("car_sessions: %d seans eklendi (job=%s)", len(db_rows), job_id)
     except Exception:

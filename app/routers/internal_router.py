@@ -5,8 +5,11 @@ recently-played ve/veya playlist verisini HEMEN tazeler. Cron'lar sessiz
 güvenlik ağı olarak kalır (kullanıcı hiç girmese de veri akar).
 
 Güvenlik: ytmusic_router ile AYNI model — X-Worker-Secret header'ı, hmac
-sabit-zamanlı karşılaştırma. WORKER_SHARED_SECRET tanımlı değilse (yerel dev)
-kontrol atlanır; production'da zorunlu.
+sabit-zamanlı karşılaştırma. WORKER_SHARED_SECRET tanımlı değilse ve açık
+`WORKER_LOCAL_DEV=1` opt-in'i de yoksa istek FAIL-CLOSED reddedilir (503) —
+ayrıca `app/health.py` başlangıçta bu router'ı hiç mount etmez (bkz. orada
+CRITICAL log). Eskiden secret boşsa kontrol tamamen atlanıyordu (fail-open);
+2026-09 audit bulgusu üzerine değiştirildi (bkz. `app/services/worker_auth.py`).
 
 Mantık KOPYALANMAZ: cron'ların çağırdığı aynı runner'lar user_id ile çağrılır.
 """
@@ -25,6 +28,7 @@ from pydantic import BaseModel
 from app.db import get_client
 from app.pipeline.playlist_refresh_runner import run_one_playlist_refresh
 from app.pipeline.recently_played_runner import run_one_recently_played_sync
+from app.services.worker_auth import is_local_dev_mode
 
 logger = logging.getLogger("rosso.worker.internal_router")
 
@@ -35,7 +39,16 @@ _DEBOUNCE_SECONDS = 120
 def require_worker_secret(x_worker_secret: str | None = Header(default=None)) -> None:
     expected = os.environ.get("WORKER_SHARED_SECRET", "")
     if not expected:
-        return  # yerel dev: secret yok → kontrol yok
+        if is_local_dev_mode():
+            return  # açık yerel-dev opt-in: kontrol atlanır
+        # Secret yok VE dev opt-in de yok → fail-closed. Prod'da bu satıra
+        # normalde hiç gelinmez (health.py router'ı zaten mount etmez), ama
+        # savunma-derinliği için burada da reddediyoruz.
+        logger.critical(
+            "WORKER_SHARED_SECRET tanımsız ve WORKER_LOCAL_DEV=1 opt-in'i yok — "
+            "/internal/refresh isteği reddedildi (fail-closed)."
+        )
+        raise HTTPException(status_code=503, detail="worker_misconfigured")
     if not x_worker_secret or not hmac.compare_digest(x_worker_secret, expected):
         raise HTTPException(status_code=401, detail="unauthorized")
 

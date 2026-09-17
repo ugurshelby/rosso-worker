@@ -20,6 +20,8 @@ import json
 import logging
 from typing import Any
 
+from app.services.chunking import chunked
+
 logger = logging.getLogger("rosso.worker.account_data")
 
 # ─── hard-discard dosyaları ────────────────────────────────────────────────
@@ -372,12 +374,18 @@ def _insert_liked_songs_snapshot(
             "import_job_id": job_id,
         })
 
+    from app.config import get_settings
+    batch_size = get_settings().batch_size
+
     try:
-        client.table("liked_songs_events").upsert(
-            db_rows,
-            on_conflict="user_id,spotify_uri,occurred_at,event_type",
-            ignore_duplicates=True,
-        ).execute()
+        for batch in chunked(db_rows, batch_size):
+            if not batch:
+                continue
+            client.table("liked_songs_events").upsert(
+                batch,
+                on_conflict="user_id,spotify_uri,occurred_at,event_type",
+                ignore_duplicates=True,
+            ).execute()
         counts["liked_songs_inserted"] += len(db_rows)
         logger.info("liked_songs_events snapshot: %d kayıt eklendi (job=%s)", len(db_rows), job_id)
     except Exception:
@@ -420,12 +428,18 @@ def _upsert_saved_library(
         for r in rows
     ]
 
+    from app.config import get_settings
+    batch_size = get_settings().batch_size
+
     try:
-        client.table("user_saved_library").upsert(
-            db_rows,
-            on_conflict="user_id,item_type,spotify_uri",
-            ignore_duplicates=True,
-        ).execute()
+        for batch in chunked(db_rows, batch_size):
+            if not batch:
+                continue
+            client.table("user_saved_library").upsert(
+                batch,
+                on_conflict="user_id,item_type,spotify_uri",
+                ignore_duplicates=True,
+            ).execute()
         counts["saved_library_inserted"] = counts.get("saved_library_inserted", 0) + len(db_rows)
         logger.info(
             "user_saved_library: %d kayit (album+sanatci) yazildi (job=%s)",

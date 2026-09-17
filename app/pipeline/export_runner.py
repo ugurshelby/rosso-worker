@@ -24,6 +24,7 @@ from app.parser.spotify_export import (
     strip_sensitive,
     _looks_like_streaming_json,
 )
+from app.services.chunking import chunked as _chunked
 
 logger = logging.getLogger("rosso.worker.export_runner")
 
@@ -77,11 +78,6 @@ def _spotify_id_from_uri(uri: str | None) -> str | None:
     if not uri or not uri.startswith("spotify:track:"):
         return None
     return uri.rsplit(":", 1)[-1]
-
-
-def _chunked(items: list[Any], size: int) -> Iterator[list[Any]]:
-    for i in range(0, len(items), size):
-        yield items[i:i + size]
 
 
 def _iter_streaming_events(zf: zipfile.ZipFile) -> Iterator[dict[str, Any]]:

@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-def _client(monkeypatch, secret=None):
+def _client(monkeypatch, secret=None, local_dev=True):
     # ÖNEMLİ: import/reload zinciri app.config'i çeker ve load_dotenv(".env.local")
     # gerçek WORKER_SHARED_SECRET'ı os.environ'a GERİ koyar. Bu yüzden env'i
     # reload'dan SONRA ayarlamak zorunlu — yoksa dev secret'ı sızar.
@@ -18,8 +18,17 @@ def _client(monkeypatch, secret=None):
     importlib.reload(mod)
     if secret is None:
         monkeypatch.delenv("WORKER_SHARED_SECRET", raising=False)
+        # Fail-closed guard (2026-09 audit): secret yoksa artık açık
+        # WORKER_LOCAL_DEV=1 opt-in'i gerekiyor, yoksa 503 döner. Bu helper'ı
+        # kullanan testlerin çoğu "yerel dev" davranışını sınadığı için
+        # varsayılan True; fail-closed testi local_dev=False geçer.
+        if local_dev:
+            monkeypatch.setenv("WORKER_LOCAL_DEV", "1")
+        else:
+            monkeypatch.delenv("WORKER_LOCAL_DEV", raising=False)
     else:
         monkeypatch.setenv("WORKER_SHARED_SECRET", secret)
+        monkeypatch.delenv("WORKER_LOCAL_DEV", raising=False)
     # get_client'ı ve runner'ları sahteleştir
     monkeypatch.setattr(mod, "get_client", lambda: object())
     monkeypatch.setattr(mod, "_crypto_key", lambda: "key")
@@ -75,6 +84,17 @@ def test_secret_required_when_configured(monkeypatch):
 
 
 def test_no_secret_in_dev_allows_request(monkeypatch):
-    client, _ = _client(monkeypatch, secret=None)
+    client, _ = _client(monkeypatch, secret=None, local_dev=True)
     r = client.post("/internal/refresh", json={"user_id": "u1", "kind": "both"})
     assert r.status_code == 200
+
+
+def test_no_secret_and_no_dev_flag_fails_closed(monkeypatch):
+    """2026-09 audit fix: secret yok + WORKER_LOCAL_DEV opt-in'i de yok → 503.
+
+    Eskiden bu durumda kontrol sessizce atlanıyordu (fail-open) — prod'da
+    secret env var'ı unutulursa /internal/refresh kimliksiz açık kalıyordu.
+    """
+    client, _ = _client(monkeypatch, secret=None, local_dev=False)
+    r = client.post("/internal/refresh", json={"user_id": "u1", "kind": "both"})
+    assert r.status_code == 503
