@@ -27,14 +27,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Postgres istemcisini kur
-        # Ubuntu runner'ın kendi pg_dump'ı eski olabilir; Supabase Postgres 17
-        # kullanıyor ve sürüm uyuşmazlığı pg_dump'ı "server version mismatch"
-        # ile durdurur. Bu yüzden 17 açıkça kuruluyor.
+        # Supabase sunucusu Postgres 17; pg_dump sunucudan ESKİ olamaz, yoksa
+        # "server version mismatch" ile durur. Bu yüzden 17 açıkça kuruluyor.
+        #
+        # ⚠ 2026-09-18: Yalnızca `apt-get install postgresql-client-17` YETMİYOR.
+        # ubuntu-latest imajında zaten postgresql-client-16 kurulu ve PATH'te
+        # onun dizini önde geliyor; 17 kurulsa bile `pg_dump` hâlâ 16'yı
+        # çağırıyordu (kurulum adımı yeşil yandığı için sorun burada görünmüyor,
+        # dump adımında patlıyordu). Çözüm: 17'nin bin dizinini GITHUB_PATH ile
+        # PATH'in BAŞINA koymak ve sürümü adımın içinde doğrulamak.
         run: |
+          set -euo pipefail
           sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
+
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+          # Doğrula: sonraki adım değil, BU adım patlasın ki sebep belli olsun.
+          SURUM="$(/usr/lib/postgresql/17/bin/pg_dump --version)"
+          echo "Kurulan pg_dump: $SURUM"
+          case "$SURUM" in
+            *"pg_dump (PostgreSQL) 17"*) ;;
+            *)
+              echo "::error::postgresql-client-17 kuruldu ama pg_dump 17 değil: $SURUM"
+              exit 1
+              ;;
+          esac
 
       - name: Dump al, sıkıştır, şifrele
         env:
@@ -53,6 +73,10 @@ jobs:
           fi
 
           DOSYA="rosso-yedek-$(date -u +%Y%m%d-%H%M).sql.gz.gpg"
+
+          # PATH'te 16 önde kalmasın diye sürümü burada da yazdır — bir daha
+          # aynı tuzağa düşersek log'dan tek bakışta anlaşılsın.
+          pg_dump --version
 
           # --no-owner/--no-acl: geri yüklerken farklı bir projeye/role basmak
           # kolay olsun diye (yedeğin amacı tam da o: hesabı kaybettiysen YENİ
