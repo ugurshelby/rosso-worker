@@ -35,3 +35,15 @@ htmlcov/
 .env
 .env.local
 *.secret
+# Veritabanı yedekleri ve parola notları (2026-09-18)
+# Kök depoda da aynı desenler var. Buraya bir yedeğin/parola notunun yanlışlıkla
+# düşmesi ihtimaline karşı savunma; tek dosya adına değil türe bakar.
+*.sql.gz
+*.sql.gz.gpg
+*.dump
+rosso-yedek-*
+*sifre*.txt
+*şifre*.txt
+*parola*.txt
+*password*.txt
+*secret*.txt
