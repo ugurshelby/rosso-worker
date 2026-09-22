@@ -21,4 +21,10 @@ jobs:
           pip install --upgrade pip
           pip install -e ".[dev]"
       - name: pytest
+        # Yer tutucu: testler sahte istemci kullanır, ağa çıkmaz. Bazı yollar
+        # (ör. account_data_parser batch_size) get_settings() okur ve o, env
+        # yoksa düşer — geliştirici makinesinde .env olduğu için hiç görülmemişti.
+        env:
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: test-placeholder
         run: pytest -q
