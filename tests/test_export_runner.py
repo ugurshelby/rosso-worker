@@ -231,3 +231,61 @@ def test_export_spotify_lookup_yapmaz(monkeypatch):
     assert result["outcome"] == "success"
     assert result["events"] > 0
     assert "quota_hit_artist_ids" not in result
+
+
+# ── api_realtime örtüşmesi (ÖLÇÜLDÜ 2026-09-21) ──────────────────────────────
+# ZIP `ts`'i tam saniye, canlı dinleme milisaniyeli: aynı çalma, tam eşleşme
+# arayan dedup index'inden kaçıyordu. Canlı satırlar ZIP'ten ÖNCE geldiğinde
+# (ikinci ZIP senaryosu) dinlemeler ikiye katlanacaktı.
+
+import pytest
+
+from app.pipeline.export_runner import NEARBY_WINDOW_SECONDS, _epoch, drop_near_realtime
+
+
+def _row(track_id: str, played_at: str) -> dict:
+    return {"track_id": track_id, "played_at": played_at}
+
+
+def test_epoch_z_ve_milisaniye():
+    assert _epoch("2026-07-02T10:18:03Z") == _epoch("2026-07-02T10:18:03+00:00")
+    assert _epoch("2026-07-02T10:18:03.816+00:00") - _epoch("2026-07-02T10:18:03Z") == pytest.approx(0.816)
+    assert _epoch(None) is None
+    assert _epoch("bozuk") is None
+
+
+def test_ayni_calma_milisaniye_farkiyla_atilir():
+    rt = {"t1": [_epoch("2026-07-02T10:18:03.816+00:00")]}
+    kalan, atilan = drop_near_realtime([_row("t1", "2026-07-02T10:18:03Z")], rt)
+    assert kalan == [] and atilan == 1
+
+
+def test_pencere_sinirinda_atilir_disinda_kalir():
+    base = _epoch("2026-07-02T10:18:00Z")
+    rt = {"t1": [base]}
+    icinde = _row("t1", "2026-07-02T10:18:05Z")   # tam +5 sn
+    disinda = _row("t1", "2026-07-02T10:18:06Z")  # +6 sn
+    kalan, atilan = drop_near_realtime([icinde, disinda], rt)
+    assert NEARBY_WINDOW_SECONDS == 5
+    assert atilan == 1 and kalan == [disinda]
+
+
+def test_farkli_sarki_ayni_an_atilmaz():
+    rt = {"t1": [_epoch("2026-07-02T10:18:03Z")]}
+    satir = _row("t2", "2026-07-02T10:18:03Z")
+    kalan, atilan = drop_near_realtime([satir], rt)
+    assert kalan == [satir] and atilan == 0
+
+
+def test_canli_veri_yoksa_hepsi_kalir():
+    satirlar = [_row("t1", "2026-07-02T10:18:03Z"), _row("t2", "2026-07-03T10:00:00Z")]
+    kalan, atilan = drop_near_realtime(satirlar, {})
+    assert kalan == satirlar and atilan == 0
+
+
+def test_ayni_sarki_gun_icinde_iki_kez_yalniz_eslesen_atilir():
+    rt = {"t1": [_epoch("2026-07-02T10:18:03.5+00:00")]}
+    sabah = _row("t1", "2026-07-02T10:18:03Z")
+    aksam = _row("t1", "2026-07-02T21:40:00Z")
+    kalan, atilan = drop_near_realtime([sabah, aksam], rt)
+    assert kalan == [aksam] and atilan == 1

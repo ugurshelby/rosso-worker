@@ -13,6 +13,8 @@ import logging
 import sys
 import time
 import zipfile
+from bisect import bisect_left
+from datetime import datetime, timezone
 from typing import Any, Iterator
 
 from app.parser.spotify_export import (
@@ -30,6 +32,100 @@ logger = logging.getLogger("rosso.worker.export_runner")
 
 
 # ─────────────────────────── saf helper'lar ───────────────────────────
+
+# recently_played_runner._NEARBY_WINDOW_SECONDS ile AYNI pencere: iki yön
+# aynı "aynı çalma" tanımını kullanmalı.
+NEARBY_WINDOW_SECONDS = 5
+
+
+def _epoch(ts: Any) -> float | None:
+    """ISO zaman damgası → epoch saniye (Z ve saniye-altı destekli)."""
+    if not isinstance(ts, str) or not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def drop_near_realtime(
+    rows: list[dict[str, Any]], realtime: dict[str, list[float]],
+) -> tuple[list[dict[str, Any]], int]:
+    """Canlı dinlemede (api_realtime) ±5 sn içinde zaten olan çalmaları at.
+
+    ÖLÇÜLDÜ 2026-09-21: ZIP'in `ts`'i tam saniye (`10:18:03`), canlı
+    dinlemenin `played_at`'i milisaniyeli (`10:18:03.816`). Aynı çalma iki
+    farklı satır olur; `play_events_dedup_idx` (user, played_at, track) tam
+    eşleşme aradığı için yakalamaz. Canlı runner bu korumayı ZIP'e karşı
+    zaten yapıyordu (0104 bulgusu); ters yön — canlı satırlar ÖNCE gelip ZIP
+    SONRA yüklendiğinde — korumasızdı ve dinlemeleri ikiye katlayacaktı.
+
+    Canlı satır SİLİNMEZ, ZIP satırı ATLANIR: silmek geri alınamaz bir iş,
+    atlamak değil. Bedeli: o çalmalarda ms_played canlı runner'ın tam-süre
+    tahmini olarak kalır.
+
+    `realtime`: track_id → SIRALI epoch listesi. Dönüş: (kalanlar, atılan sayısı).
+    """
+    kept: list[dict[str, Any]] = []
+    dropped = 0
+    for row in rows:
+        times = realtime.get(row.get("track_id") or "")
+        t = _epoch(row.get("played_at")) if times else None
+        if times and t is not None:
+            i = bisect_left(times, t - NEARBY_WINDOW_SECONDS)
+            if i < len(times) and times[i] <= t + NEARBY_WINDOW_SECONDS:
+                dropped += 1
+                continue
+        kept.append(row)
+    return kept, dropped
+
+
+def _fetch_realtime_plays(
+    client: Any, user_id: str, period_start: str | None, period_end: str | None,
+) -> dict[str, list[float]]:
+    """ZIP döneminin içindeki api_realtime çalmaları: track_id → sıralı epoch.
+
+    Yalnız api_realtime çekilir: ZIP↔ZIP örtüşmesi aynı hassasiyette olduğu
+    için tam eşleşme index'i onu zaten yakalar. Sorgu düşerse boş döner ve
+    yükleme devam eder (tek bir ZIP'i kaybetmek, birkaç çift satırdan kötü);
+    uyarı loglanır.
+    """
+    out: dict[str, list[float]] = {}
+    lo, hi = _epoch(period_start), _epoch(period_end)
+    if lo is None or hi is None:
+        return out
+    lo_iso = datetime.fromtimestamp(lo - NEARBY_WINDOW_SECONDS, tz=timezone.utc).isoformat()
+    hi_iso = datetime.fromtimestamp(hi + NEARBY_WINDOW_SECONDS, tz=timezone.utc).isoformat()
+    page = 1000
+    start = 0
+    try:
+        while True:
+            res = (
+                client.table("play_events")
+                .select("track_id,played_at")
+                .eq("user_id", user_id)
+                .eq("source", "api_realtime")
+                .gte("played_at", lo_iso)
+                .lte("played_at", hi_iso)
+                .order("played_at")
+                .range(start, start + page - 1)
+                .execute()
+            )
+            data = res.data or []
+            for r in data:
+                t = _epoch(r.get("played_at"))
+                if t is not None and r.get("track_id"):
+                    out.setdefault(r["track_id"], []).append(t)
+            if len(data) < page:
+                break
+            start += page
+    except Exception:  # noqa: BLE001
+        logger.warning("api_realtime örtüşme sorgusu düştü: user=%s", user_id, exc_info=True)
+        return {}
+    for times in out.values():
+        times.sort()
+    return out
+
 
 def to_play_event_row(normalized: dict[str, Any], *, user_id: str, track_id: str) -> dict[str, Any]:
     """Normalize edilmiş event'i YALIN play_events satırına çevir (raw_* YOK)."""
@@ -253,11 +349,21 @@ def run_one_export(client: Any, settings: Any, job: dict[str, Any]) -> dict[str,
         if tid:
             play_rows.append(to_play_event_row(ev, user_id=user_id, track_id=tid))
 
+    # Canlı dinleme (api_realtime) ile örtüşen çalmalar: aynı çalma iki kaynakta
+    # farklı saniye-altı hassasiyetle durur, tam eşleşme arayan dedup index'i
+    # yakalamaz. Bkz. `drop_near_realtime`.
+    realtime = _fetch_realtime_plays(client, user_id, period_start, period_end)
+    play_rows, realtime_overlap = drop_near_realtime(play_rows, realtime)
+
+    inserted_plays = 0
     for batch in _chunked(play_rows, settings.batch_size):
         if batch:
-            client.table("play_events").upsert(
+            res = client.table("play_events").upsert(
                 batch, on_conflict="user_id,played_at,track_id", ignore_duplicates=True,
             ).execute()
+            # ignore_duplicates + return=representation → yalnız GERÇEKTEN
+            # eklenen satırlar döner. Önceki ZIP'te olan çalmalar burada sayılmaz.
+            inserted_plays += len(getattr(res, "data", None) or [])
 
     # ── 4. podcast_events ───────────────────────────────────────────────────────
     podcast_rows = [to_podcast_event_row(ev, user_id=user_id) for ev in podcast]
@@ -273,7 +379,12 @@ def run_one_export(client: Any, settings: Any, job: dict[str, Any]) -> dict[str,
     # (play + podcast + yan-veri). skipped: okunup yazılmayanlar (geçersiz/
     # duplicate/track'e eşleşmeyen) + yan-veri hataları.
     total_read = len(raw_events)
-    written_streaming = len(play_rows) + len(podcast_rows)
+    #
+    # ÖLÇÜLDÜ 2026-09-21: eskiden `written_streaming = len(play_rows)` idi —
+    # yazmaya DENENEN satır sayısı. İkinci ZIP'te önceki ZIP'in tüm çalmaları
+    # zaten DB'dedir ve ignore_duplicates onları sessizce atlar; karne yine
+    # hepsini "yazıldı" gösteriyordu. Artık gerçekten eklenen sayılıyor.
+    written_streaming = inserted_plays + len(podcast_rows)
     matched_events = written_streaming + _side_written(side_counts)
     skipped_events = max(0, total_read - written_streaming) + side_counts.get("errors", 0)
 
@@ -281,6 +392,8 @@ def run_one_export(client: Any, settings: Any, job: dict[str, Any]) -> dict[str,
         "outcome": "success",
         "tracks": len(sid_to_track_id),
         "events": len(play_rows),
+        "inserted_events": inserted_plays,
+        "realtime_overlap": realtime_overlap,
         "podcasts": len(podcast_rows),
         "elapsed_ms": elapsed,
         "period_start": period_start,

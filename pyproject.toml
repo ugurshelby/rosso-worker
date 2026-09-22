@@ -27,3 +27,13 @@ pythonpath = ["."]
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+# Paket keşfi AÇIKÇA `app` ile sınırlı. `assets/` (playlist kapakları) paket
+# değil, veri klasörü — setuptools'un otomatik keşfi onu da üst düzey paket
+# sanıp "Multiple top-level packages discovered in a flat-layout: ['app',
+# 'assets']" ile `pip install -e .`'i düşürüyordu. ÖLÇÜLDÜ 2026-09-22:
+# process-zip.yml GitHub Actions'ta HİÇ kurulamıyordu; ZIP'ler 'queued'da
+# kalıyordu. assets'e kod yol ile erişir (auto_playlist_generator.py
+# `_COVERS_DIR`), paket olarak kurulması gerekmez.
+[tool.setuptools.packages.find]
+include = ["app*"]
