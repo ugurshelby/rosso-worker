@@ -97,15 +97,23 @@ _STREAM_EVENT = {
 
 
 class _FakeTable:
-    def __init__(self, sink):
+    """Boş bir DB gibi davranır: upsert edilen her satır YENİ eklenmiş sayılır
+    (gerçek PostgREST ignore_duplicates + return=representation'da yalnız
+    eklenenleri döndürür). `already_present=True` → her şey zaten DB'de
+    (ikinci ZIP senaryosu), hiçbir satır dönmez."""
+
+    def __init__(self, sink, already_present=False):
         self._sink = sink
+        self._already_present = already_present
+        self._last: list = []
 
     def upsert(self, rows, **kwargs):
         self._sink.append(rows)
+        self._last = [] if self._already_present else list(rows)
         return self
 
     def execute(self):
-        return type("R", (), {"data": []})()
+        return type("R", (), {"data": self._last})()
 
 
 class _FakeStorage:
@@ -124,12 +132,13 @@ class _FakeStorage:
 
 
 class _FakeClient:
-    def __init__(self, blob):
+    def __init__(self, blob, already_present=False):
         self.storage = _FakeStorage(blob)
         self.upserts = []
+        self._already_present = already_present
 
     def table(self, name):
-        return _FakeTable(self.upserts)
+        return _FakeTable(self.upserts, self._already_present)
 
     def rpc(self, fn, params):
         # insert_tracks_batch → her track için {spotify_id, track_id}
@@ -172,7 +181,7 @@ def test_mixed_zip_hem_streaming_hem_yan_veri_isler():
     # Karne sözleşmesi (2026-07-19): tip + matched/skipped raporlanır
     assert result["zip_type"] == "mixed"
     # matched = play + podcast + yan-veri yazımları — en az streaming + liked
-    assert result["matched_events"] >= result["events"] + result["counts"]["liked_songs_inserted"]
+    assert result["matched_events"] >= result["inserted_events"] + result["counts"]["liked_songs_inserted"]
     assert result["skipped_events"] >= 0
 
 
@@ -289,3 +298,17 @@ def test_ayni_sarki_gun_icinde_iki_kez_yalniz_eslesen_atilir():
     aksam = _row("t1", "2026-07-02T21:40:00Z")
     kalan, atilan = drop_near_realtime([sabah, aksam], rt)
     assert kalan == [aksam] and atilan == 1
+
+
+def test_ikinci_zip_zaten_olan_calmalari_yazildi_saymaz():
+    """ÖLÇÜLDÜ 2026-09-21: karne yazılmaya DENENEN satırı sayıyordu. İkinci ZIP'te
+    önceki ZIP'in çalmaları zaten DB'de; hepsi ATLANDI olarak raporlanmalı."""
+    client = _FakeClient(_streaming_zip_blob(), already_present=True)
+    job = {"id": "job-2", "user_id": "u1", "file_path": "u1/e2.zip"}
+    result = run_one_export(client, _FakeSettings(), job)
+
+    assert result["outcome"] == "success"
+    assert result["events"] > 0              # yazmaya denendi
+    assert result["inserted_events"] == 0    # ama hiçbiri yeni değildi
+    assert result["matched_events"] == 0
+    assert result["skipped_events"] >= result["events"]
