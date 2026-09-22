@@ -515,14 +515,49 @@ def build_recap_extras_payload(
         ).execute()
         r = (res.data or [{}])[0] or {}
         if r.get("artist_name") or r.get("track_title"):
+            track_img = r.get("track_image_url")
+            artist_img = r.get("artist_image_url")
+
+            if not track_img and r.get("track_title"):
+                try:
+                    t_res = (
+                        client.from_("tracks")
+                        .select("image_url")
+                        .ilike("title", r["track_title"])
+                        .not_.is_("image_url", "null")
+                        .limit(1)
+                        .execute()
+                    )
+                    if t_res.data:
+                        track_img = t_res.data[0].get("image_url")
+                except Exception:
+                    pass
+
+            if not artist_img and r.get("artist_name"):
+                try:
+                    a_res = (
+                        client.from_("artists")
+                        .select("image_url")
+                        .ilike("name", r["artist_name"])
+                        .not_.is_("image_url", "null")
+                        .limit(1)
+                        .execute()
+                    )
+                    if a_res.data:
+                        artist_img = a_res.data[0].get("image_url")
+                except Exception:
+                    pass
+
             out["number_one"] = {
                 "artist_name": r.get("artist_name"),
                 "artist_hours": float(r["artist_hours"]) if r.get("artist_hours") else None,
                 "artist_plays": int(r.get("artist_plays") or 0),
+                "artist_image_url": artist_img,
                 "track_title": r.get("track_title"),
                 "track_artist": r.get("track_artist"),
                 "track_hours": float(r["track_hours"]) if r.get("track_hours") else None,
                 "track_plays": int(r.get("track_plays") or 0),
+                "track_image_url": track_img,
             }
     except Exception:
         logger.warning("recap_number_one okunamadi user=%s", user_id)
