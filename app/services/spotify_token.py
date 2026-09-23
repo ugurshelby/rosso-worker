@@ -2,6 +2,12 @@
 
 TS tarafındaki ensureValidToken (src/lib/services/token-refresh.ts) desenin
 Python karşılığı — worker cron'ları TS'ye bağımlı olmadan bağımsız çalışır.
+
+BYOC (2026-09-23, `web/src/lib/spotify/byoc.ts` ile aynı karar): kullanıcının
+kendi Spotify dev app kimlik bilgisi varsa (spotify_byoc_credentials,
+migration 0339) yenileme AYNI çiftle yapılmalı — Spotify refresh_token'ı
+yalnız onu üreten app'e karşı kabul eder. Paylaşılan env yalnız BYOC
+satırı yoksa (ya da doğrulanmamışsa) kullanılır.
 """
 from __future__ import annotations
 
@@ -16,6 +22,35 @@ logger = logging.getLogger("rosso.worker.spotify_token")
 
 _REFRESH_THRESHOLD = timedelta(minutes=5)
 _TOKEN_URL = "https://accounts.spotify.com/api/token"
+
+
+def _resolve_client_credentials(client: Any, user_id: str, crypto_key: str) -> tuple[str, str] | None:
+    """BYOC varsa ve doğrulanmışsa onu, yoksa paylaşılan env'i döner.
+
+    ⚠ Doğrulanmamış (`verified_at is None`) satır KULLANILMAZ — TS tarafıyla
+    (`lib/spotify/byoc.ts`) aynı kural: yanlış kopyalanmış bir sırla kullanıcı
+    sessizce kilitlenmesin, paylaşılana düş.
+    """
+    try:
+        res = (
+            client.table("spotify_byoc_credentials")
+            .select("client_id, client_secret, verified_at")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        rows = res.data or []
+        if rows and rows[0].get("verified_at"):
+            secret = decrypt_token(rows[0]["client_secret"], crypto_key)
+            if secret:
+                return rows[0]["client_id"], secret
+    except Exception:  # noqa: BLE001
+        logger.warning("BYOC kimlik bilgisi okunamadı, paylaşılana düşülüyor: user=%s", user_id)
+
+    client_id = os.environ.get("SPOTIFY_CLIENT_ID", "")
+    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        return None
+    return client_id, client_secret
 
 
 def get_valid_spotify_token(
@@ -58,8 +93,11 @@ def get_valid_spotify_token(
     if not refresh_token:
         return None
 
-    client_id = os.environ.get("SPOTIFY_CLIENT_ID", "")
-    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
+    creds = _resolve_client_credentials(client, user_id, crypto_key)
+    if not creds:
+        logger.warning("Spotify client kimlik bilgisi bulunamadı (ne BYOC ne paylaşılan): user=%s", user_id)
+        return None
+    client_id, client_secret = creds
 
     try:
         resp = http.post(
