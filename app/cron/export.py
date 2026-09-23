@@ -47,24 +47,43 @@ def process_next_export_job(client: Any, settings: Any) -> dict[str, Any]:
     from app.pipeline.export_runner import run_one_export
     from app.services import run_log
 
-    res = (
-        client.table("export_jobs")
-        .select("id, user_id, file_path, status")
-        .eq("status", "queued")
-        .order("created_at")
-        .limit(1)
-        .execute()
-    )
-    jobs = res.data or []
-    if not jobs:
-        return {"outcome": "empty", "job_id": None, "has_more_queued": False}
+    # ATOMİK SAHİPLENME (2026-09-23, çok kullanıcı denetimi). Her ZIP yüklemesi
+    # ayrı bir GitHub Actions çalışması uyandırır; iki kullanıcı aynı anda
+    # yüklerse iki çalışma AYNI 'queued' işi seçebiliyordu (seç → id ile
+    # güncelle, arada kilit yok) ve ZIP iki kez işleniyordu. Güncelleme artık
+    # `status='queued'` koşuluyla yapılır: satırı yalnız bir çalışma çevirebilir,
+    # kaybeden bir sonraki işe geçer.
+    job: dict[str, Any] | None = None
+    for _ in range(5):
+        res = (
+            client.table("export_jobs")
+            .select("id, user_id, file_path, status")
+            .eq("status", "queued")
+            .order("created_at")
+            .limit(1)
+            .execute()
+        )
+        jobs = res.data or []
+        if not jobs:
+            return {"outcome": "empty", "job_id": None, "has_more_queued": False}
 
-    job = jobs[0]
+        claim = (
+            client.table("export_jobs")
+            .update({
+                "status": "processing",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            })
+            .eq("id", jobs[0]["id"])
+            .eq("status", "queued")
+            .execute()
+        )
+        if claim.data:
+            job = jobs[0]
+            break
+    if job is None:
+        return {"outcome": "empty", "job_id": None, "has_more_queued": _has_queued_exports(client)}
+
     job_id = job["id"]
-    client.table("export_jobs").update({
-        "status": "processing",
-        "started_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", job_id).execute()
 
     try:
         result = run_one_export(client, settings, job)

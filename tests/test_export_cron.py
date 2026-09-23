@@ -70,7 +70,8 @@ class _Chain:
     def execute(self):
         if self._payload is not None:
             self._sink.append(self._payload)
-            return type("R", (), {"data": []})()
+            # PostgREST güncellenen satırları döner; atomik sahiplenme buna bakar.
+            return type("R", (), {"data": [{"id": "j1"}]})()
         return type("R", (), {"data": [
             {"id": "j1", "user_id": "u1", "file_path": "p", "status": "queued"},
         ]})()
@@ -113,3 +114,32 @@ def test_main_yan_veri_isinde_karne_ve_tip_yazar(monkeypatch):
     assert done["skipped_events"] == 1
     assert done["total_events"] == 3
     assert done["genre_pending"] is False
+
+
+# ─── Atomik sahiplenme (2026-09-23): iki çalışma aynı işi almasın ────────────
+
+class _KaybedenChain(_Chain):
+    """Sahiplenme güncellemesi 0 satır döner — işi başka çalışma aldı."""
+    def execute(self):
+        if self._payload is not None:
+            self._sink.append(self._payload)
+            return type("R", (), {"data": []})()
+        return super().execute()
+
+
+class _KaybedenClient(_CronClient):
+    def table(self, name):
+        assert name == "export_jobs"
+        return _KaybedenChain(self.updates)
+
+
+def test_sahiplenmeyi_kaybeden_calisma_isi_islemez(monkeypatch):
+    import app.pipeline.export_runner as er
+    from app.cron.export import process_next_export_job
+
+    cagrildi = []
+    monkeypatch.setattr(er, "run_one_export", lambda *a, **k: cagrildi.append(1))
+
+    sonuc = process_next_export_job(_KaybedenClient(), object())
+    assert sonuc["outcome"] == "empty"
+    assert cagrildi == []

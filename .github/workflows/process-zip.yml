@@ -5,6 +5,14 @@ on:
     types: [process_new_export]
   workflow_dispatch:
 
+# Aynı anda en fazla bir işleyici (2026-09-23). Her ZIP yüklemesi bir çalışma
+# uyandırır; çalışma kuyruktaki TÜM bekleyen işleri sırayla eritir. Bekleyen
+# yeni çalışma öncekinin yerini alır ama hiçbiri iptal edilmez — yani kuyruk
+# yine boşalır, yalnız aynı anda iki runner dakika yakmaz.
+concurrency:
+  group: process-zip
+  cancel-in-progress: false
+
 jobs:
   process:
     runs-on: ubuntu-latest
