@@ -97,8 +97,8 @@ class _MultiTableClient:
         return _Query(self._tables.get(name, []))
 
 
-def test_byoc_verified_credentials_used_over_shared(monkeypatch):
-    """Doğrulanmış BYOC satırı varsa paylaşılan env DEĞİL, onun kimliği kullanılır."""
+def test_byoc_connection_uses_byoc_credentials(monkeypatch):
+    """Bağlantı BYOC app'iyle kurulduysa (oauth_client_id eşleşir) BYOC kimliği kullanılır."""
     import app.services.spotify_token as mod
     monkeypatch.setattr(mod, "decrypt_token", lambda ct, key: f"plain-{ct}")
     monkeypatch.setenv("SPOTIFY_CLIENT_ID", "shared-id")
@@ -112,12 +112,14 @@ def test_byoc_verified_credentials_used_over_shared(monkeypatch):
         }],
     })
 
-    creds = _resolve_client_credentials(client, "user1", "key")
+    creds = _resolve_client_credentials(client, "user1", "key", "user-own-id")
     assert creds == ("user-own-id", "plain-enc_user_secret")
 
 
-def test_byoc_unverified_row_falls_back_to_shared(monkeypatch):
-    """`verified_at` boşsa BYOC satırı YOK sayılır — yanlış sırla kilitlenme yok."""
+def test_shared_connection_ignores_byoc_row(monkeypatch):
+    """🔴 Asıl koruma (0341): bağlantı paylaşılan app'le kuruluysa BYOC kaydı OLSA BİLE
+    paylaşılan kimlik kullanılır. BYOC OAuth'u yarıda kalan kullanıcının mevcut
+    bağlantısı böylece kırılmaz."""
     import app.services.spotify_token as mod
     monkeypatch.setattr(mod, "decrypt_token", lambda ct, key: f"plain-{ct}")
     monkeypatch.setenv("SPOTIFY_CLIENT_ID", "shared-id")
@@ -127,19 +129,39 @@ def test_byoc_unverified_row_falls_back_to_shared(monkeypatch):
         "spotify_byoc_credentials": [{
             "client_id": "user-own-id",
             "client_secret": "enc_user_secret",
-            "verified_at": None,
+            "verified_at": "2026-09-23T00:00:00+00:00",
         }],
     })
 
-    creds = _resolve_client_credentials(client, "user1", "key")
-    assert creds == ("shared-id", "shared-secret")
+    # Eski bağlantı (0341 öncesi, NULL) ve açıkça paylaşılan app'le kurulmuş bağlantı
+    assert _resolve_client_credentials(client, "user1", "key", None) == ("shared-id", "shared-secret")
+    assert _resolve_client_credentials(client, "user1", "key", "shared-id") == ("shared-id", "shared-secret")
+
+
+def test_byoc_connection_without_matching_row_returns_none(monkeypatch):
+    """Bağlantı bir BYOC app'iyle kurulmuş ama o kimlik artık yok/eşleşmiyor → None
+    (yanlış kimlikle denemek yerine yeniden bağlanma gerekir)."""
+    import app.services.spotify_token as mod
+    monkeypatch.setattr(mod, "decrypt_token", lambda ct, key: f"plain-{ct}")
+    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "shared-id")
+    monkeypatch.setenv("SPOTIFY_CLIENT_SECRET", "shared-secret")
+
+    client = _MultiTableClient({
+        "spotify_byoc_credentials": [{
+            "client_id": "baska-id",
+            "client_secret": "enc_x",
+            "verified_at": "2026-09-23T00:00:00+00:00",
+        }],
+    })
+
+    assert _resolve_client_credentials(client, "user1", "key", "user-own-id") is None
 
 
 def test_no_byoc_row_and_no_shared_env_returns_none(monkeypatch):
-    """Ne BYOC ne paylaşılan env varsa None döner — çağıran taraf refresh'i durdurur."""
+    """Paylaşılan env yoksa eski bağlantı da yenilenemez → None."""
     monkeypatch.delenv("SPOTIFY_CLIENT_ID", raising=False)
     monkeypatch.delenv("SPOTIFY_CLIENT_SECRET", raising=False)
 
     client = _MultiTableClient({"spotify_byoc_credentials": []})
-    creds = _resolve_client_credentials(client, "user1", "key")
+    creds = _resolve_client_credentials(client, "user1", "key", None)
     assert creds is None

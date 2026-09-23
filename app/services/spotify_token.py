@@ -3,11 +3,10 @@
 TS tarafındaki ensureValidToken (src/lib/services/token-refresh.ts) desenin
 Python karşılığı — worker cron'ları TS'ye bağımlı olmadan bağımsız çalışır.
 
-BYOC (2026-09-23, `web/src/lib/spotify/byoc.ts` ile aynı karar): kullanıcının
-kendi Spotify dev app kimlik bilgisi varsa (spotify_byoc_credentials,
-migration 0339) yenileme AYNI çiftle yapılmalı — Spotify refresh_token'ı
-yalnız onu üreten app'e karşı kabul eder. Paylaşılan env yalnız BYOC
-satırı yoksa (ya da doğrulanmamışsa) kullanılır.
+BYOC (2026-09-23, `web/src/lib/spotify/byoc.ts` ile aynı karar): yenileme,
+refresh_token'ı ÜRETEN app'in kimliğiyle yapılır — Spotify refresh_token'ı
+yalnız ona karşı kabul eder. O app `platform_connections.oauth_client_id`'de
+(migration 0341); kural için bkz. `_resolve_client_credentials`.
 """
 from __future__ import annotations
 
@@ -24,13 +23,30 @@ _REFRESH_THRESHOLD = timedelta(minutes=5)
 _TOKEN_URL = "https://accounts.spotify.com/api/token"
 
 
-def _resolve_client_credentials(client: Any, user_id: str, crypto_key: str) -> tuple[str, str] | None:
-    """BYOC varsa ve doğrulanmışsa onu, yoksa paylaşılan env'i döner.
+def _resolve_client_credentials(
+    client: Any, user_id: str, crypto_key: str, oauth_client_id: str | None = None
+) -> tuple[str, str] | None:
+    """Refresh token'ı ÜRETEN app'in kimliğini döner (migration 0341).
 
-    ⚠ Doğrulanmamış (`verified_at is None`) satır KULLANILMAZ — TS tarafıyla
-    (`lib/spotify/byoc.ts`) aynı kural: yanlış kopyalanmış bir sırla kullanıcı
-    sessizce kilitlenmesin, paylaşılana düş.
+    TS `resolveSpotifyCredentialsForConnection` ile aynı kural:
+      oauth_client_id None (0341 öncesi bağlantı) → paylaşılan env
+      paylaşılan env id'sine eşit                 → paylaşılan env
+      doğrulanmış BYOC client_id'sine eşit         → BYOC (sır çözülerek)
+      hiçbiri                                      → None (yeniden bağlanmalı)
+
+    ⚠ İlk sürüm "BYOC kaydı varsa onu kullan" diyordu. BYOC kaydı OAuth
+    bitmeden yazıldığı için, paylaşılan app'le bağlı kullanıcının OAuth'u
+    yarıda kalırsa paylaşılan refresh_token BYOC kimliğiyle denenip
+    bağlantı düşürülürdü.
     """
+    shared_id = os.environ.get("SPOTIFY_CLIENT_ID", "")
+    shared_secret = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
+
+    if oauth_client_id is None or oauth_client_id == shared_id:
+        if not shared_id or not shared_secret:
+            return None
+        return shared_id, shared_secret
+
     try:
         res = (
             client.table("spotify_byoc_credentials")
@@ -39,18 +55,13 @@ def _resolve_client_credentials(client: Any, user_id: str, crypto_key: str) -> t
             .execute()
         )
         rows = res.data or []
-        if rows and rows[0].get("verified_at"):
+        if rows and rows[0].get("verified_at") and rows[0].get("client_id") == oauth_client_id:
             secret = decrypt_token(rows[0]["client_secret"], crypto_key)
             if secret:
                 return rows[0]["client_id"], secret
     except Exception:  # noqa: BLE001
-        logger.warning("BYOC kimlik bilgisi okunamadı, paylaşılana düşülüyor: user=%s", user_id)
-
-    client_id = os.environ.get("SPOTIFY_CLIENT_ID", "")
-    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
-    if not client_id or not client_secret:
-        return None
-    return client_id, client_secret
+        logger.warning("BYOC kimlik bilgisi okunamadı: user=%s", user_id)
+    return None
 
 
 def get_valid_spotify_token(
@@ -63,7 +74,7 @@ def get_valid_spotify_token(
     """
     res = (
         client.table("platform_connections")
-        .select("access_token, refresh_token, token_expires, is_active")
+        .select("access_token, refresh_token, token_expires, is_active, oauth_client_id")
         .eq("user_id", user_id)
         .eq("platform", "spotify")
         .execute()
@@ -93,7 +104,7 @@ def get_valid_spotify_token(
     if not refresh_token:
         return None
 
-    creds = _resolve_client_credentials(client, user_id, crypto_key)
+    creds = _resolve_client_credentials(client, user_id, crypto_key, conn.get("oauth_client_id"))
     if not creds:
         logger.warning("Spotify client kimlik bilgisi bulunamadı (ne BYOC ne paylaşılan): user=%s", user_id)
         return None
