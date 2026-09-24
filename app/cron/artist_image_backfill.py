@@ -22,6 +22,7 @@ def main() -> int:
 
     from app.config import get_settings
     from app.db import get_client
+    from app.cron._gruplu import gruplu_calistir
     from app.pipeline.artist_image_backfill_runner import run_artist_image_backfill
     from app.services import run_log
 
@@ -29,8 +30,14 @@ def main() -> int:
     settings = get_settings()
     try:
         with httpx.Client(timeout=15) as http:
-            result = run_artist_image_backfill(
-                client, settings, http, batch_limit=60, time_budget_s=200.0
+            # Her kullanıcı KENDİ Spotify app'inin kotasıyla (2026-09-23).
+            result = gruplu_calistir(
+                client, settings,
+                lambda grup, kalan: run_artist_image_backfill(
+                    client, settings, http, batch_limit=60,
+                    time_budget_s=min(kalan, 200.0), grup=grup,
+                ),
+                toplam_butce_s=200.0,
             )
         # ⚠ `quota_hit` bir BOOL — bkz. cover_backfill'deki aynı düzeltme.
         log_run(

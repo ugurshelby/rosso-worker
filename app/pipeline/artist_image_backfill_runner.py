@@ -31,6 +31,7 @@ import time
 from typing import Any
 
 from app.services import cooldown
+from app.services.spotify_kimlik_havuzu import KimlikGrubu
 from app.services.spotify_lookup import (
     _get_access_token,
     _with_retry,
@@ -81,6 +82,7 @@ def run_artist_image_backfill(
     batch_limit: int = 60,
     time_budget_s: float = 200.0,
     candidates_rpc: str = _KAT1_RPC,
+    grup: KimlikGrubu | None = None,
 ) -> dict[str, Any]:
     """image_url'i boş sanatçıları Spotify köprüsüyle doldurur.
 
@@ -103,7 +105,8 @@ def run_artist_image_backfill(
     start = time.monotonic()
 
     # §1.6 ilk kapı: ortak havuz bloklu ise HİÇ dokunma (token bile alma).
-    blocked, remaining = cooldown.is_blocked(client, _SPOTIFY_PROVIDER)
+    saglayici = grup.saglayici if grup else _SPOTIFY_PROVIDER
+    blocked, remaining = cooldown.is_blocked(client, saglayici)
     if blocked:
         logger.info(
             "Sanatçı görseli: Spotify cooldown aktif (%ds kaldı) — tur atlandı, kota korunuyor",
@@ -114,13 +117,21 @@ def run_artist_image_backfill(
     # ── Kat-1 kuyruğu (plan 08 §4, migration 0221) ────────────────────────
     # Kör kuyruk yerine yalnız paketlerde duran eksik sanatçılar (ölçüldü:
     # 12 sanatçı, hepsinin köprü şarkısı var). Bkz. `cover_backfill_runner`.
-    res = client.rpc(candidates_rpc, {"p_limit": batch_limit}).execute()
+    if grup:
+        res = client.rpc(
+            "paket_gorsel_adaylari_sanatci_kullanicilar",
+            {"p_user_ids": grup.user_ids, "p_limit": batch_limit},
+        ).execute()
+    else:
+        res = client.rpc(candidates_rpc, {"p_limit": batch_limit}).execute()
     rows = res.data or []
     if not rows:
         return {"outcome": "empty", "processed": 0, "updated": 0, "skipped": 0}
 
     token = _get_access_token(
-        settings.spotify_client_id, settings.spotify_client_secret, http
+        grup.client_id if grup else settings.spotify_client_id,
+        grup.client_secret if grup else settings.spotify_client_secret,
+        http,
     )
     if not token:
         logger.warning("Sanatçı görseli: Spotify token alınamadı — tur atlandı")
@@ -161,7 +172,7 @@ def run_artist_image_backfill(
             # (bkz. cover_backfill_runner, 2026-08-01).
             retry_after = exc.retry_after or 3600.0
             cooldown.set_cooldown(
-                client, _SPOTIFY_PROVIDER, retry_after, reason="artist_image_backfill_429"
+                client, saglayici, retry_after, reason="artist_image_backfill_429"
             )
             logger.warning(
                 "Sanatçı görseli: Spotify kotası tükendi (Retry-After=%.0fs) — cooldown + tur durduruluyor",
@@ -204,7 +215,7 @@ def run_artist_image_backfill(
         except SpotifyQuotaExhausted as exc:
             retry_after = exc.retry_after or 3600.0
             cooldown.set_cooldown(
-                client, _SPOTIFY_PROVIDER, retry_after, reason="artist_image_backfill_429"
+                client, saglayici, retry_after, reason="artist_image_backfill_429"
             )
             logger.warning(
                 "Sanatçı görseli: Spotify kotası tükendi (Retry-After=%.0fs) — cooldown + tur durduruluyor",

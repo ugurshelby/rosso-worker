@@ -87,15 +87,19 @@ def _with_retry(fn: Any, *args: Any, **kwargs: Any) -> Any:
 
 logger = logging.getLogger("rosso.worker.spotify_lookup")
 
-# Spotify token cache (servis ömrü boyunca)
-_token_cache: dict[str, Any] = {"access_token": None, "expires_at": 0.0}
+# Spotify app token önbelleği (servis ömrü boyunca) — client_id BAŞINA.
+# 2026-09-23: eskiden tek küresel önbellekti. Katalog bakımı artık her
+# kullanıcının KENDİ app'iyle çalışıyor (`spotify_kimlik_havuzu`); tek önbellek
+# bir app'in token'ını ötekine verirdi (yanlış app kotasına yazılan istek).
+_token_cache: dict[str, dict[str, Any]] = {}
 
 
 def _get_access_token(client_id: str, client_secret: str, http_client: Any) -> str | None:
-    """Client Credentials flow ile Spotify access token al (cache'li)."""
+    """Client Credentials flow ile Spotify access token al (client_id başına cache'li)."""
     now = time.time()
-    if _token_cache["access_token"] and now < _token_cache["expires_at"] - 30:
-        return _token_cache["access_token"]  # type: ignore[return-value]
+    onbellek = _token_cache.get(client_id)
+    if onbellek and onbellek["access_token"] and now < onbellek["expires_at"] - 30:
+        return onbellek["access_token"]  # type: ignore[return-value]
 
     try:
         creds = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
@@ -115,10 +119,12 @@ def _get_access_token(client_id: str, client_secret: str, http_client: Any) -> s
             logger.warning("Spotify token alınamadı (tüm denemeler tükendi)")
             return None
         data = resp.json()
-        _token_cache["access_token"] = data["access_token"]
-        _token_cache["expires_at"] = now + data.get("expires_in", 3600)
+        _token_cache[client_id] = {
+            "access_token": data["access_token"],
+            "expires_at": now + data.get("expires_in", 3600),
+        }
         logger.info("Spotify access token alındı (geçerlilik: %ds)", data.get("expires_in", 3600))
-        return _token_cache["access_token"]  # type: ignore[return-value]
+        return _token_cache[client_id]["access_token"]  # type: ignore[return-value]
     except Exception:  # noqa: BLE001
         logger.warning("Spotify token alınamadı")
         return None

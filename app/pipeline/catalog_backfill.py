@@ -38,6 +38,7 @@ import time
 from typing import Any
 
 from app.services import cooldown
+from app.services.spotify_kimlik_havuzu import KimlikGrubu
 from app.services.spotify_lookup import (
     SpotifyQuotaExhausted,
     _get_access_token,
@@ -177,7 +178,7 @@ def fetch_batch(ids: list[str], token: str, http: Any) -> list[dict[str, Any]]:
 
 
 def run_one_catalog_batch(
-    client: Any, settings: Any, *, max_batches: int = 8
+    client: Any, settings: Any, *, max_batches: int = 8, grup: KimlikGrubu | None = None
 ) -> dict[str, Any]:
     """Bir cron turunda `max_batches` × 50 track dolgula.
 
@@ -192,7 +193,8 @@ def run_one_catalog_batch(
     # 🔴 DEVRE KESİCİ — bu cron cooldown'ı HİÇ KULLANMIYORDU (canlı bulgu).
     # Spotify 6,4 saatlik ceza verdiğinde her 10 dakikada bir yeniden deniyor,
     # cezayı besliyordu. Bloklu isek HİÇ İSTEK ATMA.
-    blocked, remaining = cooldown.is_blocked(client, _PROVIDER)
+    saglayici = grup.saglayici if grup else _PROVIDER
+    blocked, remaining = cooldown.is_blocked(client, saglayici)
     if blocked:
         logger.warning(
             "Spotify cooldown aktif (%d sn / %.1f saat) — dolgu atlanıyor",
@@ -210,23 +212,32 @@ def run_one_catalog_batch(
         # verisi herkese aynı. Kullanıcı token'ı kullanmak yanlış olurdu:
         # kullanıcı bağlantısını kesince dolgu ölürdü.
         token = _get_access_token(
-            settings.spotify_client_id, settings.spotify_client_secret, http
+            grup.client_id if grup else settings.spotify_client_id,
+            grup.client_secret if grup else settings.spotify_client_secret,
+            http,
         )
         if not token:
             logger.warning("Spotify app token alınamadı — dolgu atlanıyor")
             return {"outcome": "error", "processed": 0, "updated": 0, "error": "no_token"}
 
         for _ in range(max_batches):
-            res = (
-                client.table("tracks")
-                .select("spotify_id")
-                .is_("catalog_backfill_at", "null")
-                .not_.is_("spotify_id", "null")
-                .or_("isrc.is.null,duration_ms.is.null")
-                .order("created_at")
-                .limit(_BATCH)
-                .execute()
-            )
+            if grup:
+                # Yalnız bu grubun kullanıcılarının dinlediği bekleyen track'ler.
+                res = client.rpc(
+                    "katalog_dolgu_adaylari_kullanicilar",
+                    {"p_user_ids": grup.user_ids, "p_limit": _BATCH},
+                ).execute()
+            else:
+                res = (
+                    client.table("tracks")
+                    .select("spotify_id")
+                    .is_("catalog_backfill_at", "null")
+                    .not_.is_("spotify_id", "null")
+                    .or_("isrc.is.null,duration_ms.is.null")
+                    .order("created_at")
+                    .limit(_BATCH)
+                    .execute()
+                )
             ids = [r["spotify_id"] for r in (res.data or []) if r.get("spotify_id")]
             if not ids:
                 # Kuyruk boş — iş bitti.
@@ -246,7 +257,7 @@ def run_one_catalog_batch(
                 # Artık devre kesici kurulur → sonraki turlar HİÇ istek atmaz.
                 retry_after = _retry_after_seconds(exc)
                 used = cooldown.set_cooldown(
-                    client, _PROVIDER, retry_after, reason="catalog_429"
+                    client, saglayici, retry_after, reason="catalog_429"
                 )
                 logger.warning(
                     "Spotify kotası tükendi — %d sn (%.1f saat) cooldown yazıldı: %s",

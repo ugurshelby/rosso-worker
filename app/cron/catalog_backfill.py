@@ -21,13 +21,19 @@ logger = logging.getLogger("rosso.worker.cron.catalog_backfill")
 def main() -> int:
     from app.config import get_settings
     from app.db import get_client
+    from app.cron._gruplu import gruplu_calistir
     from app.pipeline.catalog_backfill import run_one_catalog_batch
     from app.services import run_log
 
     client = get_client()
     settings = get_settings()
     try:
-        result = run_one_catalog_batch(client, settings, max_batches=8)
+        # Her kullanıcı KENDİ Spotify app'inin kotasıyla (2026-09-23).
+        result = gruplu_calistir(
+            client, settings,
+            lambda grup, kalan: run_one_catalog_batch(client, settings, max_batches=8, grup=grup),
+            toplam_butce_s=240.0,
+        )
         logger.info(
             '{"run":"catalog_backfill","status":"%s","processed":%d,"updated":%d}',
             result["outcome"], result.get("processed", 0), result.get("updated", 0),

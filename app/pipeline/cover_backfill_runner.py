@@ -22,6 +22,7 @@ import time
 from typing import Any
 
 from app.services import cooldown
+from app.services.spotify_kimlik_havuzu import KimlikGrubu
 from app.services.spotify_lookup import (
     _get_access_token,
     _with_retry,
@@ -74,8 +75,13 @@ def run_cover_backfill(
     batch_limit: int = 100,
     time_budget_s: float = 200.0,
     candidates_rpc: str = _KAT1_RPC,
+    grup: KimlikGrubu | None = None,
 ) -> dict[str, Any]:
     """image_url'i boş, spotify_id'si dolu track'leri Spotify'dan doldurur.
+
+    grup (2026-09-23): verilirse tur O GRUBUN app'iyle ve kotasıyla çalışır —
+    yalnız grubun kullanıcılarının paketlerindeki eksikler, cooldown
+    sağlayıcısı `grup.saglayici`. Verilmezse eski davranış (paylaşılan env).
 
     {outcome, processed, updated, skipped, quota_hit}. outcome:
       'empty'   — doldurulacak track yok (kuyruk boş, bakım modu).
@@ -95,7 +101,8 @@ def run_cover_backfill(
     # alma. Bloklu olmak, başka bir Spotify işinin (veya önceki kapak turunun)
     # 429 yiyip cooldown damgası vurduğu anlamına gelir. Kapak dolgusu düşük
     # öncelikli — o pencerede diğerlerine yol açar, kotayı yemez.
-    blocked, remaining = cooldown.is_blocked(client, _SPOTIFY_PROVIDER)
+    saglayici = grup.saglayici if grup else _SPOTIFY_PROVIDER
+    blocked, remaining = cooldown.is_blocked(client, saglayici)
     if blocked:
         logger.info(
             "Kapak dolgusu: Spotify cooldown aktif (%ds kaldı) — tur atlandı, kota korunuyor",
@@ -113,13 +120,21 @@ def run_cover_backfill(
     # Efendim'in kuralı: "Rosso'da göremeyeceği görseli çekme." Kör kuyruk
     # tam da onu yapıyordu; kullanıcının hiç açmayacağı içerik için kota
     # harcayıp paketlerdeki gerçek eksikleri bekletiyordu.
-    res = client.rpc(candidates_rpc, {"p_limit": batch_limit}).execute()
+    if grup:
+        res = client.rpc(
+            "paket_gorsel_adaylari_track_kullanicilar",
+            {"p_user_ids": grup.user_ids, "p_limit": batch_limit},
+        ).execute()
+    else:
+        res = client.rpc(candidates_rpc, {"p_limit": batch_limit}).execute()
     rows = res.data or []
     if not rows:
         return {"outcome": "empty", "processed": 0, "updated": 0, "skipped": 0}
 
     token = _get_access_token(
-        settings.spotify_client_id, settings.spotify_client_secret, http
+        grup.client_id if grup else settings.spotify_client_id,
+        grup.client_secret if grup else settings.spotify_client_secret,
+        http,
     )
     if not token:
         logger.warning("Kapak dolgusu: Spotify token alınamadı — tur atlandı")
@@ -163,7 +178,7 @@ def run_cover_backfill(
             # Süre bilinmiyorsa (HTTP/2 kopması) §4.2 gereği 1 saat.
             retry_after = exc.retry_after or 3600.0
             cooldown.set_cooldown(
-                client, _SPOTIFY_PROVIDER, retry_after, reason="cover_backfill_429"
+                client, saglayici, retry_after, reason="cover_backfill_429"
             )
             # Kaç saniye YAZILDIĞINI cooldown.set_cooldown loglar (cap'i o bilir).
             # Burada yalnız platformun ne istediğini söyleriz.
