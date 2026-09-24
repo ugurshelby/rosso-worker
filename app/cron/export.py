@@ -40,6 +40,48 @@ def recover_stale_jobs(client, *, stale_minutes: int = 15) -> None:
         logger.warning("stale-job recovery başarısız")
 
 
+def expire_abandoned_uploads(client, *, stale_hours: int = 3) -> int:
+    """Yükleme yarım kalmış ('uploading' > stale_hours) işleri kapat ve dosyalarını sil.
+
+    Kullanıcı sekmeyi kapatırsa ya da bağlantı koparsa `/api/export/queue`
+    hiç çağrılmaz; iş 'uploading'de asılı kalır ve Storage'da yarım/tam bir
+    dosya durur. Web aktif-iş sınırı bu işleri 3 saat sonra saymaz, ama depoyu
+    temizleyen bu fonksiyon. Hata turu bozmaz.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from app.config import get_settings
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=stale_hours)).isoformat()
+    try:
+        res = (
+            client.table("export_jobs")
+            .select("id, file_path")
+            .eq("status", "uploading")
+            .lt("created_at", cutoff)
+            .limit(200)
+            .execute()
+        )
+        rows = res.data or []
+        if not rows:
+            return 0
+        bucket = get_settings().export_bucket
+        yollar = [r["file_path"] for r in rows if r.get("file_path")]
+        if yollar:
+            try:
+                client.storage.from_(bucket).remove(yollar)
+            except Exception:  # noqa: BLE001
+                logger.warning("terk edilmiş yüklemelerin dosyaları silinemedi")
+        client.table("export_jobs").update({
+            "status": "failed",
+            "error_message": "yukleme_tamamlanmadi",
+        }).in_("id", [r["id"] for r in rows]).eq("status", "uploading").execute()
+        return len(rows)
+    except Exception:  # noqa: BLE001
+        logger.warning("terk edilmiş yükleme temizliği başarısız")
+        return 0
+
+
 def process_next_export_job(client: Any, settings: Any) -> dict[str, Any]:
     """Kuyruktan bir export işle. {outcome, job_id?, has_more_queued} döner."""
     from datetime import datetime, timezone
@@ -173,6 +215,7 @@ def run_export_burst(*, time_budget_s: float = 300.0) -> dict[str, Any]:
     client = get_client()
     settings = get_settings()
     recover_stale_jobs(client)
+    expire_abandoned_uploads(client)
 
     started = time.monotonic()
     processed = 0

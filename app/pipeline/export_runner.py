@@ -27,6 +27,11 @@ from app.parser.spotify_export import (
     _looks_like_streaming_json,
 )
 from app.services.chunking import chunked as _chunked
+from app.services.zip_guard import MAX_STREAMING_EVENTS, ZipGuardError, denetle_zip
+
+#: İndirilen ZIP bu bayttan büyükse açılmadan reddedilir (web bucket sınırıyla aynı,
+#: 200 MB — worker ikinci savunma hattı: web'i atlayan doğrudan Storage yüklemesi).
+MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024
 
 logger = logging.getLogger("rosso.worker.export_runner")
 
@@ -177,9 +182,24 @@ def _spotify_id_from_uri(uri: str | None) -> str | None:
 
 
 def _iter_streaming_events(zf: zipfile.ZipFile) -> Iterator[dict[str, Any]]:
-    """Streaming JSON event'lerini akış halinde ver (ijson, bellek-dostu)."""
+    """Streaming JSON event'lerini akış halinde ver (ijson, bellek-dostu).
+
+    Toplam event sayısı `MAX_STREAMING_EVENTS` ile sınırlıdır (2026-09-23):
+    akış bellek-dostu ama sonuçlar `list(...)` ile toplanıyor — milyonlarca
+    küçük event'le dolu "geçerli görünen" bir JSON worker'ı bellekle
+    öldürebilirdi. Aşılırsa `ZipGuardError('cok_fazla_event')`.
+    """
     import ijson  # geç import — test ortamı ijson gerektirmesin
 
+    sayac = 0
+    for event in _iter_streaming_events_ham(zf, ijson):
+        sayac += 1
+        if sayac > MAX_STREAMING_EVENTS:
+            raise ZipGuardError("cok_fazla_event", f"> {MAX_STREAMING_EVENTS}")
+        yield event
+
+
+def _iter_streaming_events_ham(zf: zipfile.ZipFile, ijson: Any) -> Iterator[dict[str, Any]]:
     for name in zf.namelist():
         entry_type = classify_zip_entry(name)
         if entry_type == "streaming":
@@ -250,7 +270,28 @@ def run_one_export(client: Any, settings: Any, job: dict[str, Any]) -> dict[str,
     path = job["file_path"]
 
     blob = client.storage.from_(settings.export_bucket).download(path)
-    zf = zipfile.ZipFile(io.BytesIO(blob))
+
+    # ── Yapı denetimi (2026-09-23): kullanıcı dosyası GÜVENİLMEZ ────────────────
+    # Sıra: boyut → geçerli ZIP mi → yapı (yol geçişi, iç içe arşiv, şifreli,
+    # giriş sayısı…) → zip-bomb. Hangisi başarısız olursa iş HATAYLA kapanır ve
+    # Storage'daki dosya SİLİNİR — reddedilen bir dosya depoda çöp kalmaz, cron
+    # bir sonraki dosyaya geçer.
+    def _reddet(kod: str, ayrinti: str = "") -> dict[str, Any]:
+        logger.warning("ZIP reddedildi (job=%s): %s %s", job_id, kod, ayrinti)
+        _cleanup(client, settings.export_bucket, path)
+        return {"outcome": "error", "error": kod,
+                "elapsed_ms": int((time.time() - t0) * 1000)}
+
+    if len(blob) > MAX_DOWNLOAD_BYTES:
+        return _reddet("dosya_cok_buyuk", f"{len(blob)} bayt")
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(blob))
+    except zipfile.BadZipFile:
+        return _reddet("gecersiz_zip")
+    try:
+        denetle_zip(zf)
+    except ZipGuardError as exc:
+        return _reddet(exc.kod, exc.ayrinti)
 
     # Zip-bomb guard: parse başlamadan önce açılmış-boyut/oran sınırlarını doğrula.
     # Aşılırsa job'u reddet + dosyayı temizle (cron'u OOM ile öldürmesini önle).
@@ -296,11 +337,17 @@ def run_one_export(client: Any, settings: Any, job: dict[str, Any]) -> dict[str,
                     "skipped_events": side_counts.get("errors", 0)}
 
     if zip_type == "unknown":
+        # Tanınmayan ZIP: kullanıcı yanlış dosya yükledi ya da içerik sahte.
+        # Depoda TUTULMAZ (eskiden kalıyordu — reddedilen her dosya çöp bırakırdı).
+        _cleanup(client, settings.export_bucket, path)
         return {"outcome": "error", "error": "unknown_zip", "zip_type": zip_type,
                 "elapsed_ms": int((time.time() - t0) * 1000)}
 
     # ── streaming_history (yalın akış) ──────────────────────────────────────────
-    raw_events = list(_iter_streaming_events(zf))
+    try:
+        raw_events = list(_iter_streaming_events(zf))
+    except ZipGuardError as exc:
+        return _reddet(exc.kod, exc.ayrinti)
     cleaned = [strip_sensitive(e) for e in raw_events]
     valid = [e for e in cleaned if is_valid_play(e)]
     deduped = deduplicate(valid)
