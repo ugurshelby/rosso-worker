@@ -51,3 +51,5 @@ jobs:
           python -m app.cron.artist_image_backfill
           echo "4. Katalog backfill"
           python -m app.cron.catalog_backfill
+          echo "5. Deezer kapak dolgusu (Spotify'ı olmayan kullanıcılar)"
+          python -m app.cron.deezer_cover_backfill

@@ -185,8 +185,12 @@ def _pick_best(
     return best[1] if best else None
 
 
-def lookup_isrc(artist: str, title: str, http: Any) -> dict[str, Any] | None:
-    """artist + title → Deezer'dan dolgu satırı (isrc/duration/album/yıl) | None.
+def lookup_track_payload(artist: str, title: str, http: Any) -> dict[str, Any] | None:
+    """artist + title → Deezer'ın HAM /track/{id} yanıtı | None (doğrulanmış eşleşme).
+
+    (2026-09-24) `lookup_isrc` bunun üstüne kuruldu; `deezer_cover_runner` de aynı
+    doğrulanmış eşleşmeyi kullanıp kapak (`album.cover_big`) alır — eşleşme mantığı
+    TEK yerde, iki kullanım.
 
     İki aşama (deezer_genre ile aynı desen, canlı kanıtlı):
       A) fold'lu kesin sorgu — İ/aksan sorununu çözer
@@ -239,7 +243,13 @@ def lookup_isrc(artist: str, title: str, http: Any) -> dict[str, Any] | None:
         logger.warning("Deezer track başarısız: id=%s", hit["id"])
         return None
     _raise_if_quota(payload)
-    return parse_deezer_track(payload)
+    return payload if isinstance(payload, dict) else None
+
+
+def lookup_isrc(artist: str, title: str, http: Any) -> dict[str, Any] | None:
+    """artist + title → Deezer'dan dolgu satırı (isrc/duration/album/yıl) | None."""
+    payload = lookup_track_payload(artist, title, http)
+    return parse_deezer_track(payload) if payload else None
 
 
 def _null_row(spotify_id: str) -> dict[str, Any]:
