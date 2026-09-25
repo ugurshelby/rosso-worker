@@ -8,9 +8,11 @@ Sıra:
   2. journey_pkg → taste_pkg → pattern_pkg → stats_pkg → period_pkg
   3. mood_pkg (+ içindeki mood_weekly_sync)
   4. recap_refresh
-5. match_batch — kişisel Rosso'da atlanır
-6. auto_playlist (iç kapılar aylık üretimi yönetir)
-7. account_purge (yıkıcı — en sonda)
+  5. auto_playlist (iç kapılar aylık üretimi yönetir)
+  6. log_cleanup
+
+V2 (2026-09-25): `match_batch` (sosyal eşleşme) kaldırıldı; `account_purge` Python'dan çıktı —
+hesap silme temizliği web'deki `rosso-account-purge-cron`'da (TypeScript, `account_deletions`).
 """
 from __future__ import annotations
 
@@ -20,7 +22,6 @@ from datetime import datetime, timezone
 
 from app.cron._dispatch import run_step
 from app.cron._logging import log_run, setup_logging
-from app.cron import account_purge as purge_cron
 from app.cron import auto_playlist as auto_playlist_cron
 from app.cron import journey_pkg as journey_cron
 from app.cron import log_cleanup as log_cleanup_cron
@@ -59,9 +60,7 @@ def main() -> int:
 
     run_step("mood_pkg", mood_cron.main)
     run_step("recap_refresh", recap_cron.main)
-    log_run(logger, "match_batch", status="skipped", reason="personal")
     run_step("auto_playlist", auto_playlist_cron.main)
-    run_step("account_purge", purge_cron.main)
     run_step("log_cleanup", log_cleanup_cron.main)
 
     log_run(logger, "worker_nightly", status="done")

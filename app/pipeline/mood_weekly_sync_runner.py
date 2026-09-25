@@ -15,7 +15,7 @@ kontrol edilir (haftalık zamanlama). Runner'ın kendisi
 zamanlama sorumluluğu cron tarafında.
 
 ⚠ İZOLE: bir kullanıcının/mood'un senkron hatası diğerlerini durdurmaz
-(pipeline deseni, match_batch_runner ile aynı).
+(pipeline deseni, mood_pkg_runner ile aynı).
 
 Token: `app.services.spotify_token.get_valid_spotify_token` — TS
 `ensureValidToken`'ın Python karşılığı, gerekirse otomatik yeniler.
@@ -128,7 +128,7 @@ def run_mood_weekly_sync(client: Any, crypto_key: str, http: Any) -> dict[str, A
                 user_id, mood_key, str(exc)[:200],
             )
 
-    # Diğer paket runner'larıyla (mood_pkg_runner, match_batch_runner) aynı
+    # Diğer paket runner'larıyla (mood_pkg_runner) aynı
     # sözleşme: hiçbir şey senkron edilmediyse (hepsi atlandıysa) 'success'
     # yanıltıcı olur — 'empty' gerçek durumu söyler.
     if synced == 0 and errors > 0:
