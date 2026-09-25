@@ -1,6 +1,6 @@
 """Dashboard "Dinlemelerim" tüm-zamanlar paketi cron'u (Aşama 3 · paket #5).
 
-Railway: python -m app.cron.period_pkg  ·  GÜNLÜK
+Çalıştırma: python -m app.cron.period_pkg  ·  GÜNLÜK
 
 `user_period_pkg` tablosunu doldurur: özet sayımlar + top şarkılar +
 top sanatçılar (yalnız TÜM ZAMANLAR penceresi).

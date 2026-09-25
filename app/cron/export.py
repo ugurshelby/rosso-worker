@@ -1,4 +1,4 @@
-"""Export cron entry — bekleyen 1 ZIP'i işle, çık. Railway: python -m app.cron.export."""
+"""Export cron entry — bekleyen 1 ZIP'i işle, çık. Çalıştırma: python -m app.cron.export."""
 from __future__ import annotations
 
 import logging

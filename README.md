@@ -37,5 +37,6 @@ pytest                         # saf fonksiyon testleri (DB gerektirmez)
 
 ## Deploy
 
-Railway / Render / Fly.io — `Dockerfile` hazır. Env: `SUPABASE_URL`,
+Worker 7/24 açık değildir (sıfır maliyet mimarisi): ağır işler GitHub Actions'ta on-demand çalışır,
+günlük işler Supabase `pg_cron` ile tetiklenir. `Dockerfile` gerekirse konteynerde çalıştırmak içindir. Env: `SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY`. Health check: `GET /health`.

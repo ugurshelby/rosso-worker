@@ -1,6 +1,6 @@
 """Worker-fast dispatcher — sık aralıklı arka plan işleri.
 
-Railway: python -m app.cron.fast
+Çalıştırma: python -m app.cron.fast
 Schedule önerisi: */5 * * * * (her 5 dk)
 
 Sıra:

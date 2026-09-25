@@ -1,6 +1,6 @@
-"""Hafif health servisi — Railway healthcheck. Worker loop YOK (cron ayrı).
+"""Hafif health servisi — canlılık kontrolü. Worker loop YOK (cron ayrı).
 
-Railway: uvicorn app.health:app --host 0.0.0.0 --port $PORT
+Çalıştırma: uvicorn app.health:app --host 0.0.0.0 --port $PORT
 """
 from __future__ import annotations
 

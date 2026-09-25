@@ -1,5 +1,5 @@
 """Taste modeli yeniden hesaplama cron — haftalık (§1.9).
-Railway: python -m app.cron.taste_refresh.
+Çalıştırma: python -m app.cron.taste_refresh.
 
 play_events'i olan her kullanıcı için refresh_user_taste RPC'sini çağırır
 (weights → behavioral → genre_vector → mainstream → identity → materialize).

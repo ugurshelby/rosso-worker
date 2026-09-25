@@ -1,6 +1,6 @@
 """Journey yıl paketi cron'u (Aşama 3 · paket #1).
 
-Railway: python -m app.cron.journey_pkg
+Çalıştırma: python -m app.cron.journey_pkg
 
 `journey_year_pkg` tablosunu doldurur. `/journey` yalnız bu paketi okur
 (0,13 ms); paket yoksa "hazırlanıyor" gösterir — canlı hesaba ASLA düşmez.

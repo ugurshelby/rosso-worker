@@ -1,4 +1,4 @@
-# Rosso worker — Railway/Render/Fly.io için
+# Rosso worker — konteyner imajı (7/24 servis DEĞİL; ağır işler on-demand GitHub Actions'ta)
 FROM python:3.13-slim
 
 WORKDIR /app
@@ -11,8 +11,6 @@ COPY . .
 
 EXPOSE 8000
 
-# Health servisi (web). Cron dispatcher'lar Railway'de ayrı tanımlanır:
-#   worker-fast:   python -m app.cron.fast      (*/5 * * * *)
-#   worker-nightly: python -m app.cron.nightly  (0 3 * * *)
-# bkz. worker/RAILWAY.md
+# Health servisi (web). Cron işleri `python -m app.cron.<is>` ile ayrıca çalıştırılır
+# (Supabase pg_cron / GitHub Actions tetikler).
 CMD ["sh", "-c", "uvicorn app.health:app --host 0.0.0.0 --port ${PORT:-8000} --no-access-log --log-level warning"]

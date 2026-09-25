@@ -204,7 +204,7 @@ def test_cooldown_spotifynin_istedigi_sureyle_vurulur(monkeypatch):
 
     Canlı olay: Spotify Retry-After=64926s (18 saat) istedi, kod 3600s yazdı.
     Bir saat sonra cron uyandı, Spotify hâlâ cezadaydı → yeni 429 → yeni 3600s.
-    10 saat boyunca her saat başı ceza tazelendi (Railway logları).
+    10 saat boyunca her saat başı ceza tazelendi (worker logları).
 
     Kural: cooldown süresi platformun İSTEDİĞİ süredir. Üst sınırı uygulamak
     cooldown.set_cooldown'ın işi (MAX_COOLDOWN_S) — çağıran onu kısaltmaz.

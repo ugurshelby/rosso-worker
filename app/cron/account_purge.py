@@ -1,5 +1,5 @@
 """Otomatik purge cron entry — soft-delete süresi (30 gün) dolan hesapları
-kalıcı siler, çıkar. Railway: python -m app.cron.account_purge.
+kalıcı siler, çıkar. Çalıştırma: python -m app.cron.account_purge.
 
 ⚠ YIKICI cron (auth.users CASCADE). Ama yalnız 30 günü GERÇEKTEN dolmuş,
 soft-delete edilmiş hesaplara dokunur (grace penceresi + kurtarma guard'ı

@@ -1,6 +1,6 @@
 """Dashboard StatBar + Profil tür haritası paketi cron'u (Aşama 3 · paket #4).
 
-Railway: python -m app.cron.stats_pkg  ·  GÜNLÜK
+Çalıştırma: python -m app.cron.stats_pkg  ·  GÜNLÜK
 
 `user_stats_pkg` tablosunu doldurur. Dashboard StatBar'ın dört kutusunu
 (şarkı / sanatçı / tür / dinleme) ve Profil tür haritasını besler.

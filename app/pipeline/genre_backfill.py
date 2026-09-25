@@ -16,7 +16,7 @@ sağlanırsa çalışır:
      başka bir track'i zaten bu türle etiketlenmiş (track-seviyesinde
      doğrulanmış demektir, kör bir artist-tag'e güvenilmiyor).
 
-Bilerek DEVREDE DEĞİL: bu modül bir Railway cron'una bağlanmadı, sadece
+Bilerek DEVREDE DEĞİL: bu modül bir cron'a bağlanmadı, sadece
 kod olarak hazır. Devreye alma ayrı bir karar (ana enrichment bitince).
 """
 from __future__ import annotations

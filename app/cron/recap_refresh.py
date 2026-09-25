@@ -1,6 +1,6 @@
 """Recap tazeleme cron'u — v2 (FAZ R3).
 
-Railway: python -m app.cron.recap_refresh
+Çalıştırma: python -m app.cron.recap_refresh
 
 Donmuş payload modelinin tetiği (plan §4). Kullanıcı recap'i açtığında hesap
 yapılmaz; bu cron payload'ı önceden üretir. Kısmi güncelleme sayesinde yeni

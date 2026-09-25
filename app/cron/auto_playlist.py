@@ -1,5 +1,5 @@
 """Otomatik playlist cron — aylık top playlist (opt-in kullanıcılar için).
-Railway: python -m app.cron.auto_playlist.
+Çalıştırma: python -m app.cron.auto_playlist.
 
 enabled=true auto_playlist_rules kayıtları için çalışır:
   - top_month: her ay → bir önceki ayın top listesi ("Mayıs - 2026")

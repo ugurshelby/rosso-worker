@@ -1,6 +1,6 @@
 """ISRC dolgu cron'u — Deezer öncelikli (FAZ ISRC-D).
 
-Railway: python -m app.cron.isrc_backfill
+Çalıştırma: python -m app.cron.isrc_backfill
 
 Kuyruk boşalınca `empty` döner ve hiçbir Deezer isteği atmaz → cron sürekli
 çalışsa da maliyet sıfıra iner. Yeni track'ler geldikçe kuyruğa girer ve
@@ -40,7 +40,7 @@ def main() -> int:
             error=result.get("error"),
         )
         # partial/blocked de 0 döner: cron çökmedi, iş kısmen yapıldı/ertelendi.
-        # Railway'de exit≠0 alarm üretir — kota beklemesi alarm DEĞİLDİR.
+        # Zamanlayıcıda exit≠0 alarm üretir — kota beklemesi alarm DEĞİLDİR.
         return 0
     except Exception as exc:  # noqa: BLE001
         logger.exception("ISRC dolgusu başarısız")

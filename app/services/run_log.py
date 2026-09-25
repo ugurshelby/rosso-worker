@@ -1,4 +1,4 @@
-"""pipeline_runs'a tek satır kayıt — Railway stdout şişmeden DB'de detay tutulur."""
+"""pipeline_runs'a tek satır kayıt — stdout şişmeden DB'de detay tutulur."""
 from __future__ import annotations
 
 import logging

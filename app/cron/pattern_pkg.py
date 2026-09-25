@@ -1,6 +1,6 @@
 """Saatlik dağılım + Platform donut paketi cron'u (Aşama 3 · paket #3).
 
-Railway: python -m app.cron.pattern_pkg  ·  GÜNLÜK
+Çalıştırma: python -m app.cron.pattern_pkg  ·  GÜNLÜK
 
 `user_pattern_pkg` tablosunu doldurur. Dashboard `insights-row` bileşenini
 besler (saatlik bar chart + zirve saat + platform donut).

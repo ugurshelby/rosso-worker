@@ -147,7 +147,7 @@ def run_cover_backfill(
     quota_hit = False
 
     for row in rows:
-        # Bütçe kontrolü — Railway cron penceresini aşma (§1.6 disiplini).
+        # Bütçe kontrolü — cron penceresini aşma (§1.6 disiplini).
         if time.monotonic() - start > time_budget_s:
             logger.info("Kapak dolgusu: zaman bütçesi doldu, %d işlendi", processed)
             break

@@ -1,6 +1,6 @@
 """Taşıma kuyruğu cron'u — sıradaki partileri işler.
 
-Railway: python -m app.cron.migration_queue
+Çalıştırma: python -m app.cron.migration_queue
 
 MİMARİ NOTU (önemli): bu cron **iş yapmaz**, yalnızca ZAMANLAYICIDIR.
 Taşıma motoru (Spotify/Apple/YT istemcileri, token yönetimi, eşleşme önbelleği)
@@ -12,7 +12,7 @@ Ters yön zaten var: Next → worker `/internal/refresh` (FAZ 2). Aynı paylaş�
 sır, aynı desen.
 
 Kapasite dolduğunda uç `{"idle": true, "reason": "günlük kapasite doldu"}` döner.
-Bu HATA DEĞİLDİR → outcome 'empty'. Railway'de exit≠0 alarm üretir; "bugünlük
+Bu HATA DEĞİLDİR → outcome 'empty'. Zamanlayıcıda exit≠0 alarm üretir; "bugünlük
 kota bitti" alarm değildir.
 """
 from __future__ import annotations

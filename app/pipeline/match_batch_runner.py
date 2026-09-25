@@ -82,7 +82,7 @@ def run_match_batch(client: Any) -> dict[str, Any]:
         # okuma 0,36 ms / 8 blok — 56 kat hızlı, 210 kat az disk. Fark topluluk
         # büyüdükçe açılır (anlık yol HER adayı tek tek hesaplıyor).
         #
-        # ⚠ AYRI CRON AÇILMADI: yeni Railway servisi CLAUDE.md §5 "dur ve sor"
+        # ⚠ AYRI CRON AÇILMADI: yeni servis CLAUDE.md §5 "dur ve sor"
         # listesinde. Ayrıca aynı kullanıcı listesini iki kez dolaşmak gereksiz;
         # zıt kutup zaten match_daily_slots'a bakıyor (aynı turda üretilmiş
         # olması DOĞRU sıralama).
@@ -109,7 +109,7 @@ def run_match_batch(client: Any) -> dict[str, Any]:
         # üretimi "o günün eşleşme slotundakiler hariç" diyor — ters sırada
         # koşarsa aynı profil HEM eşleşmede HEM öneride çıkardı.
         #
-        # 🚫 YENİ RAILWAY SERVİSİ AÇILMADI (Efendim'in şartı). Zıt kutupla
+        # 🚫 YENİ SERVİS AÇILMADI (Efendim'in şartı). Zıt kutupla
         # aynı desen: aynı döngü, aynı kullanıcı listesi.
         #
         # ⚠ İZOLE: öneri hatası eşleşme turunu BOZMAZ. Paket yazılamazsa

@@ -165,7 +165,7 @@ def run_one_genre_batch(
 ) -> dict[str, Any]:
     """Tek genre batch'i işle: çok kaynak → genre_data + genres yaz.
 
-    time_budget_s: Railway cron penceresi 300 sn ve "önceki tur bitmediyse yeni
+    time_budget_s: cron penceresi 300 sn ve "önceki tur bitmediyse yeni
     tur ATLANIR" (doküman, 2026-07-16). Bütçe dolunca kalan track'lere HİÇBİR ŞEY
     yazılmaz (lookup_failed dahil) — sonraki tur kaldığı yerden alır. Deezer
     çağrıları _paced_get ile ~4 istek/sn'ye sabitlendiği için büyük batch'in
@@ -499,7 +499,7 @@ def _recheck_resolved_artists(client: Any, artist_profiles: dict[str, dict]) -> 
 # cron-system.md ADIM 3/4: GitHub Actions'ın `python -m app.pipeline.genre_runner`
 # ile çağırdığı gerçek entrypoint burada yaşar. Önceden bu dosyada `__main__`
 # YOKTU — workflow bu modülü çalıştırınca hiçbir şey yapmadan sessizce exit 0
-# veriyordu. `run_one_genre_batch` yalnız TEK bir 200'lük batch işler (Railway'in
+# veriyordu. `run_one_genre_batch` yalnız TEK bir 200'lük batch işler (zamanlayıcının
 # 5 dakikalık tik modeline göre tasarlanmıştı); on-demand modelde kuyruk
 # (`genres IS NULL`) boşalana veya dış zaman bütçesi dolana kadar TEKRAR
 # çağrılması gerekir — `run_export_burst` ile aynı desen.

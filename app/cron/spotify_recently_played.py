@@ -1,5 +1,5 @@
 """Spotify recently-played sync cron — saatlik, cooldown bak, sync et, çık.
-Railway: python -m app.cron.spotify_recently_played."""
+Çalıştırma: python -m app.cron.spotify_recently_played."""
 from __future__ import annotations
 
 import logging

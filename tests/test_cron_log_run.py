@@ -1,6 +1,6 @@
 """`log_run()` — cron tur özetleri GEÇERLİ JSON olmalı.
 
-Canlı kanıt (2026-08-01, Railway logları): enrichment cron'u aylarca şunu yazdı:
+Canlı kanıt (2026-08-01, worker logları): enrichment cron'u aylarca şunu yazdı:
 
     {"run":"enrichment","status":"empty",...,"backfill":{'outcome': 'empty', ...}}
                                                         ^^^^^^^^^^^^^^^^^^^^^^^^

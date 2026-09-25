@@ -9,10 +9,10 @@ Akış: `mood_pkg_runner`'DAN SONRA çalışır (paket taze olmalı). Adayları
 playlist_id` dolu — kayıtlar). Her aday için `mood_pkg`'dan taze payload'ı
 okuyup Spotify'ın `PUT /playlists/{id}/tracks` (replace) uç noktasına yazar.
 
-⚠ TAZELİK: haftada bir mi çalışacağı burada DEĞİL, Railway cron zamanlamasında
-kontrol edilir (worker/RAILWAY.md — haftalık schedule). Runner'ın kendisi
+⚠ TAZELİK: haftada bir mi çalışacağı burada DEĞİL, cron zamanlamasında
+kontrol edilir (haftalık zamanlama). Runner'ın kendisi
 "bu turda kim hazır" diye sormaz, günlük de çağrılsa yalnız adayları işler;
-zamanlama sorumluluğu Railway'de.
+zamanlama sorumluluğu cron tarafında.
 
 ⚠ İZOLE: bir kullanıcının/mood'un senkron hatası diğerlerini durdurmaz
 (pipeline deseni, match_batch_runner ile aynı).

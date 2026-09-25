@@ -5,7 +5,7 @@ Akış (canlı test 2026-06-30 ile doğrulandı, TR sanatçılarda 5/5):
   1. track.getTopTags (artist+track) → toptags.tag[].name
   2. boşsa artist.getTopTags (artist) → toptags.tag[].name
 
-API key gerekli (LAST_FM_API_KEY, Railway env). Tag'ler ham/gürültülü
+API key gerekli (LAST_FM_API_KEY, worker ortam değişkeni). Tag'ler ham/gürültülü
 ('All', 'baba', sanatçı adı) → normalize_genres ile kanonik türe çevrilir.
 """
 from __future__ import annotations

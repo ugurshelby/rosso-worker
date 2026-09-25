@@ -1,6 +1,6 @@
 """Worker-nightly dispatcher — gece toplu paket + bakım işleri.
 
-Railway: python -m app.cron.nightly
+Çalıştırma: python -m app.cron.nightly
 Schedule önerisi: 0 3 * * * (günde 1, 03:00 UTC = 06:00 TR)
 
 Sıra:

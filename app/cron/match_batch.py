@@ -1,9 +1,9 @@
-"""Eşleşme partisi günlük cron — Railway: python -m app.cron.match_batch.
+"""Eşleşme partisi günlük cron — Çalıştırma: python -m app.cron.match_batch.
 
 Sosyal profili olan her kullanıcı için build_match_batch RPC'sini çağırır
 (üç-kulvar skorlama: Şu An / Değişmeyenler / Nadir Ortak, migration 0079-0083).
 
-Railway cron schedule: 30 4 * * * (her gün 04:30 UTC — taste_refresh'ten
+Cron zamanlaması: 30 4 * * * (her gün 04:30 UTC — taste_refresh'ten
 [0 4 * * *] 30 dakika sonra, güncel taste verisiyle skorlama yapılsın diye).
 """
 from __future__ import annotations

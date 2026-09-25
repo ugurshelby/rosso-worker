@@ -1,5 +1,5 @@
 """Playlist tazeleme cron — günde 1-2 kez, snapshot_id diff ile senkron.
-Railway: python -m app.cron.playlist_refresh."""
+Çalıştırma: python -m app.cron.playlist_refresh."""
 from __future__ import annotations
 
 import logging

@@ -1,6 +1,6 @@
 """Katalog dolgu cron'u — ISRC + duration_ms + album + release_year.
 
-Railway: python -m app.cron.catalog_backfill
+Çalıştırma: python -m app.cron.catalog_backfill
 
 Kuyruk boşalınca `empty` döner ve hiçbir Spotify isteği atmaz → cron sonsuza
 kadar çalışsa da maliyet sıfıra iner. Yeni track'ler (recently_played) geldikçe
@@ -45,7 +45,7 @@ def main() -> int:
             error=result.get("error"),
         )
         # partial/error de 0 döner: cron'un kendisi çökmedi, iş kısmen yapıldı.
-        # Railway'de exit≠0 alarm üretir — kota tükenmesi alarm DEĞİLDİR.
+        # Zamanlayıcıda exit≠0 alarm üretir — kota tükenmesi alarm DEĞİLDİR.
         return 0
     except Exception as exc:  # noqa: BLE001
         logger.exception("Katalog dolgusu başarısız")

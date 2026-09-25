@@ -3,7 +3,7 @@
 Canlı kanıt (2026-07-13): ytmusic_official.py'deki logger.error(..., extra={...})
 çağrıları formatter tarafından SESSİZCE yutuluyordu — yalnız level/logger/msg
 yazılıyordu. Bu, bir hatanın gerçek nedenini (reason/status/body) hiçbir zaman
-Railway loglarında göremememizin kök nedeniydi.
+Loglarda göremememizin kök nedeniydi.
 """
 import json
 import logging

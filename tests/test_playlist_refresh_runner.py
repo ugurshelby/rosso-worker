@@ -466,7 +466,7 @@ def test_remote_bos_donerse_hicbir_playlist_silinmez(monkeypatch):
 # S3 (2026-07-29): Kullanıcı seviyesinde 403 → yalnız o kullanıcı atlanır.
 # Canlı olay: Yankı allowlist dışıydı ("The user is not registered for this
 # application") ve TÜM cron çöküyordu — Ferzan'ın + Efendim'in playlist'leri
-# de tazelenmiyordu. Railway "Crashed", pipeline_runs outcome=error.
+# de tazelenmiyordu. pipeline_runs outcome=error.
 # ─────────────────────────────────────────────────────────────────────────────
 
 

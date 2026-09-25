@@ -1,6 +1,6 @@
 """Operasyonel log temizliği cron'u (Retention Cleanup — migration 0284).
 
-Railway: python -m app.cron.log_cleanup
+Çalıştırma: python -m app.cron.log_cleanup
 Sıklık: worker-nightly içinde her gece 1 kez.
 
 Free-tier 500 MB DB kotasını korumak için 30 günden eski başarılı/boş

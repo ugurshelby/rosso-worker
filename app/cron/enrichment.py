@@ -1,5 +1,5 @@
 """Enrichment cron entry — cooldown bak, 1 genre batch işle, çık.
-Railway: python -m app.cron.enrichment."""
+Çalıştırma: python -m app.cron.enrichment."""
 from __future__ import annotations
 
 import logging
@@ -20,14 +20,14 @@ def main() -> int:
     client = get_client()
     settings = get_settings()
     try:
-        # batch 40→200 (2026-07-16): Railway cron minimumu 5 dk, tur 10 sn sürüyordu
+        # batch 40→200 (2026-07-16): cron minimumu 5 dk, tur 10 sn sürüyordu
         # — pencerenin %3'ü. Deezer artık _paced_get ile ~4 istek/sn'ye sabit
         # (ölçülen limit 50/5sn); 200 track ≈ 130-160 sn, 240 sn bütçeye sığar.
         # Bütçe dolarsa kalan track'lere dokunulmaz, sonraki tur devralır.
         result = run_one_genre_batch(client, settings, batch_limit=200, time_budget_s=240.0)
 
         # Ana kuyruk boşsa, az-track backfill'i yalnız günde bir kez (24 saatte bir)
-        # çalıştır — aksi halde her 5 dakikada 200 sn CPU harcayıp Railway kotasını tüketir.
+        # çalıştır — aksi halde her 5 dakikada 200 sn CPU harcayıp çalışma kotasını tüketir.
         if result["outcome"] == "empty":
             from app.cron._dispatch import should_run_interval
             if should_run_interval(client, "enrichment", min_hours=24.0):

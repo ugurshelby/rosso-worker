@@ -1,8 +1,8 @@
 """Sanatçı görseli ön-doldurma cron entry — boş artists.image_url'e Spotify görseli.
-Railway: python -m app.cron.artist_image_backfill.
+Çalıştırma: python -m app.cron.artist_image_backfill.
 
 ⚠ Bu cron gerçek Spotify istekleri atar (§1.6) — sanatçı başına 2 istek (/tracks +
-/artists). Railway'de servisi Efendim'in onayı/gözetimiyle kurulur — küçük batch +
+/artists). Efendim'in onayı/gözetimiyle çalıştırılır — küçük batch +
 zaman bütçesi ile turlar hâlinde ilerler, tek gecede binlerce istek atmaz. Ortak
 "spotify" cooldown havuzunu cover_backfill + genre fallback + katalog ile paylaşır.
 """

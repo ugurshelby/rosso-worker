@@ -1,4 +1,4 @@
-"""Cron entry'leri için ortak JSON logging kurulumu (Railway stdout)."""
+"""Cron entry'leri için ortak JSON logging kurulumu (stdout)."""
 from __future__ import annotations
 
 import json
@@ -42,7 +42,7 @@ def log_run(logger: logging.Logger, run: str, **fields: object) -> None:
 
     ⚠ Çıktı ŞEKLİ eski çağrılarla birebir aynı: mesajın kendisi bir JSON
     string'idir (dış formatter onu `msg` alanına koyar). Bilinçli: Efendim
-    Railway loglarını bu şekilde izliyor, görünüm değişmemeli. `extra=`
+    Loglar bu şekilde izleniyor, görünüm değişmemeli. `extra=`
     desenine geçiş ayrı ve daha büyük bir iş.
 
     `default=str`: datetime/Decimal gibi tipler patlamak yerine metne düşer —

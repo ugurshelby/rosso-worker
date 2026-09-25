@@ -1,6 +1,6 @@
 """Mood (an) listeleri paketi cron'u (Aşama 3 · paket #6).
 
-Railway: python -m app.cron.mood_pkg  ·  GÜNLÜK
+Çalıştırma: python -m app.cron.mood_pkg  ·  GÜNLÜK
 
 `mood_pkg` tablosunu doldurur: sabit anlar için 50'şer şarkı.
 `/mood/[key]` detay sayfasını besler.

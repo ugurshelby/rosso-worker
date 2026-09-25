@@ -1,7 +1,7 @@
 """Kapak dolgusu cron entry — image_url'i boş track'lere Spotify kapağı.
-Railway: python -m app.cron.cover_backfill.
+Çalıştırma: python -m app.cron.cover_backfill.
 
-⚠ Bu cron gerçek Spotify istekleri atar (§1.6). Railway'de servisi Efendim'in
+⚠ Bu cron gerçek Spotify istekleri atar (§1.6). Efendim'in
 onayı/gözetimiyle kurulur — küçük batch + zaman bütçesi ile turlar hâlinde
 ilerler, tek gecede binlerce istek atmaz.
 """

@@ -1,6 +1,6 @@
 """Tür DNA + Kronotip paketi cron'u (Aşama 3 · paket #2).
 
-Railway: python -m app.cron.taste_pkg  ·  GÜNLÜK
+Çalıştırma: python -m app.cron.taste_pkg  ·  GÜNLÜK
 
 `user_taste_pkg` tablosunu doldurur. Üç yüzeyi besler: /taste (birincil),
 /profile ve /u/[username] (yan bölüm).

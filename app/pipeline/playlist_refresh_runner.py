@@ -104,7 +104,7 @@ def run_one_playlist_refresh(
         # Eskiden burada `raise_for_status()` yukarı fırlıyor ve TÜM cron çöküyordu:
         # Yankı allowlist dışı olduğu için ("The user is not registered for this
         # application") Ferzan'ın ve Efendim'in playlist'leri de tazelenmiyordu.
-        # Canlı kanıt: Railway "Crashed", pipeline_runs outcome=error.
+        # Canlı kanıt: pipeline_runs outcome=error.
         # B1 (liste bazlı 403) zaten vardı ama kullanıcı bazlı olan eksikti.
         try:
             remote_playlists = fetch_user_playlists(token, http)
