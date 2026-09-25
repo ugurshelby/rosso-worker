@@ -1,6 +1,6 @@
 """Mood (an) listeleri paketi üretimi (Aşama 3 · paket #6).
 
-Belge: docs/reference/performans-anatomisi.md §12.4
+Belge: docs/reference/performans-olcumleri.md §12.4
 
 `mood_pkg` tablosunu doldurur. `/mood/[key]` detay sayfasını besler.
 

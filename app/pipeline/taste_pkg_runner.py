@@ -1,6 +1,6 @@
 """Tür DNA + Kronotip paketi üretimi (Aşama 3 · paket #2).
 
-Belge: docs/reference/performans-anatomisi.md §12.4
+Belge: docs/reference/performans-olcumleri.md §12.4
 
 `user_taste_pkg` tablosunu doldurur. Üç yüzeyi birden besler:
     /taste     → Tür DNA + Kronotip ısı haritası (birincil veri)

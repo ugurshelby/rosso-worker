@@ -1,6 +1,6 @@
 """Journey yıl paketi üretimi (Aşama 3 · paket #1).
 
-Belge: docs/reference/performans-anatomisi.md §12.4
+Belge: docs/reference/performans-olcumleri.md §12.4
 
 `journey_year_pkg` tablosunu doldurur. `/journey` sayfası artık YALNIZ bu
 paketi okur (0,13 ms); paket yoksa "hazırlanıyor" gösterir — canlı hesaba

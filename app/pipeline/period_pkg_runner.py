@@ -1,6 +1,6 @@
 """Dashboard "Dinlemelerim" tüm-zamanlar paketi üretimi (Aşama 3 · paket #5).
 
-Belge: docs/reference/performans-anatomisi.md §12.4
+Belge: docs/reference/performans-olcumleri.md §12.4
 
 `user_period_pkg` tablosunu doldurur. Dashboard'un "Dinlemelerim" bölümünü
 besler: özet sayımlar + top şarkılar + top sanatçılar.

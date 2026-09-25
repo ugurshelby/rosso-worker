@@ -1,6 +1,6 @@
 """Dashboard StatBar + Profil tür haritası paketi üretimi (Aşama 3 · paket #4).
 
-Belge: docs/reference/performans-anatomisi.md §12.4
+Belge: docs/reference/performans-olcumleri.md §12.4
 
 `user_stats_pkg` tablosunu doldurur. Dashboard StatBar'ın dört kutusunu
 (şarkı / sanatçı / tür / dinleme süresi) ve Profil sayfasının tür haritasını

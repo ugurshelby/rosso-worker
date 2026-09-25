@@ -1,6 +1,6 @@
 """Saatlik dağılım + Platform donut paketi üretimi (Aşama 3 · paket #3).
 
-Belge: docs/reference/performans-anatomisi.md §12.4
+Belge: docs/reference/performans-olcumleri.md §12.4
 
 `user_pattern_pkg` tablosunu doldurur. Dashboard'un `insights-row` bileşenini
 besler (saatlik bar chart + zirve saat + platform donut).
